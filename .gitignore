@@ -1,0 +1,5 @@
+# macOS
+.DS_Store
+
+# WorkBuddy local project data (not source)
+.workbuddy/
