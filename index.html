@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的游戏世界 · Game World</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { min-height:100vh; background:radial-gradient(circle at 50% 20%, #16264a 0%, #05060a 70%);
+    font-family:'Microsoft YaHei','PingFang SC',sans-serif; color:#e8eefc;
+    display:flex; flex-direction:column; align-items:center; padding:48px 16px; }
+  h1 { font-size:40px; letter-spacing:4px; text-shadow:0 0 24px #4aa3ff; margin-bottom:6px; }
+  .sub { color:#8fb6ff; margin-bottom:36px; letter-spacing:1px; }
+  .grid { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; max-width:880px; }
+  .card { width:240px; background:linear-gradient(160deg,#13203a,#0c1526);
+    border:1px solid #25365c; border-radius:14px; padding:22px; text-decoration:none;
+    color:#e8eefc; transition:transform .1s, border-color .1s; }
+  .card:hover { transform:translateY(-4px); border-color:#5b8dff; }
+  .card .ico { font-size:40px; margin-bottom:10px; }
+  .card h2 { font-size:20px; margin-bottom:8px; }
+  .card p { font-size:13px; color:#9fb4dd; line-height:1.6; }
+  .tag { display:inline-block; margin-top:12px; font-size:11px; color:#7fffd4;
+    background:rgba(20,40,40,.5); padding:3px 9px; border-radius:20px; }
+  footer { margin-top:40px; font-size:12px; color:#5f7299; }
+</style>
+</head>
+<body>
+  <h1>我的游戏世界</h1>
+  <div class="sub">GAME WORLD · 三个纯前端 HTML5 小游戏</div>
+  <div class="grid">
+    <a class="card" href="sfs.html">
+      <div class="ico">🚀</div>
+      <h2>航天模拟器</h2>
+      <p>建造火箭、发射、入轨、登陆星球、对接空间站、驾驶漫游车。多体太阳系 + 真实引力。</p>
+      <span class="tag">Space Flight Sim</span>
+    </a>
+    <a class="card" href="minecraft.html">
+      <div class="ico">⛏️</div>
+      <h2>方块世界</h2>
+      <p>第一人称 3D 沙盒，无限程序化地形、挖掘建造、牛羊漫游。</p>
+      <span class="tag">Sandbox</span>
+    </a>
+    <a class="card" href="pvz.html">
+      <div class="ico">🌻</div>
+      <h2>植物大战僵尸</h2>
+      <p>经典塔防，阳光经济、多种植物与僵尸，还带数学/英语答题挑战。</p>
+      <span class="tag">Tower Defense</span>
+    </a>
+  </div>
+  <footer>Made by Eason Liang · 上海市 · 即将小学五年级</footer>
+</body>
+</html>
