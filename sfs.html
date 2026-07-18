@@ -46,6 +46,9 @@
     background:#13203a; border:1px solid #25365c; color:#cfe0ff; }
   #bodySel .bb.on { background:#2b6cff; border-color:#5b8dff; color:#fff; }
   #buildActions { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  #buildHint { font-size:11.5px; color:#7f9fd8; margin-top:6px; line-height:1.5; }
+  #buildCanvas.drop { border-color:#2b6cff; box-shadow:0 0 14px rgba(43,108,255,.7); }
+  .partBtn[draggable=true] { cursor:grab; }
   /* HUD */
   #hud { background:none; pointer-events:none; }
   #telemetry { position:absolute; left:14px; top:14px; font-size:12.5px; line-height:1.65;
@@ -107,9 +110,12 @@
     <h2>零件库</h2>
     <div id="partList"></div>
     <div id="buildActions">
-      <button class="btn alt sm" id="removeBtn">删除顶部</button>
+      <button class="btn alt sm" id="removeBtn">删除零件</button>
       <button class="btn alt sm" id="clearBtn">清空</button>
+      <button class="btn alt sm" id="flipVBtn">↕ 上下翻转</button>
+      <button class="btn alt sm" id="flipHBtn">↔ 左右翻转</button>
     </div>
+    <div id="buildHint">拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向</div>
     <button class="btn" id="launchBtn" style="margin-top:12px;">🚀 发射</button>
     <button class="btn alt sm" id="backMenuBtn">返回菜单</button>
   </div>
@@ -242,6 +248,8 @@ const PALETTE_GROUPS = [
 const G = {
   state:'menu',
   parts:['pod','tankL','engL'],   // 顶部→底部
+  flips:['pod','tankL','engL'].map(()=>({h:false,v:false})), // 与 parts 一一对应的翻转状态
+  selPart:-1,                     // 建造台当前选中的零件下标
   launchBody: TERRA.name,
   ship:null,
   station: STATION,
@@ -351,6 +359,29 @@ function recomputeShip(sh){
 //==================================================================
 const buildCanvas = document.getElementById('buildCanvas');
 const bctx = buildCanvas.getContext('2d');
+function buildPartRects(){
+  const bw=buildCanvas.width, bh=buildCanvas.height;
+  const s=rocketStats(G.parts);
+  const scale=3.0;
+  const totalH=s.height*scale;
+  let y=bh/2 + totalH/2;
+  const cx=bw/2;
+  const rects=[];
+  for(let i=0;i<G.parts.length;i++){
+    const d=PARTS[G.parts[i]];
+    const ph=d.h*scale, pw=d.w*scale;
+    const py=y-ph;
+    rects.push({i, key:G.parts[i], cx, py, ph, pw, cy:py+ph/2});
+    y=py;
+  }
+  return rects;
+}
+// 根据画布内纵坐标判断新零件插入到哪个位置（下标 0 = 底部，越大越靠上）
+function insertIndexAt(y){
+  const rects=buildPartRects();
+  for(let i=0;i<rects.length;i++){ if(y>rects[i].cy) return i; }
+  return rects.length;
+}
 function drawBuild(){
   const bw = buildCanvas.width, bh = buildCanvas.height;
   bctx.clearRect(0,0,bw,bh);
@@ -362,18 +393,22 @@ function drawBuild(){
   const cx = bw/2;
   bctx.fillStyle='#10233f';
   bctx.fillRect(0, bh-28, bw, 28);
-  let lastRole=null;
-  for(const key of G.parts){
-    const d = PARTS[key];
-    const ph = d.h*scale, pw = d.w*scale;
-    const py = y - ph;
-    drawPartShape(bctx, cx, py, pw, ph, d, 1);
+  const rects = buildPartRects();
+  for(const r of rects){
+    const d = PARTS[r.key];
+    const flip = G.flips[r.i] || {h:false,v:false};
+    drawPartShape(bctx, r.cx, r.py, r.pw, r.ph, d, 1, flip);
     // 分离器画一条分割线
     if(d.role==='decoupler'){
       bctx.strokeStyle='#ff9a3c'; bctx.lineWidth=2;
-      bctx.beginPath(); bctx.moveTo(cx-pw/2-3, py+ph/2); bctx.lineTo(cx+pw/2+3, py+ph/2); bctx.stroke();
+      bctx.beginPath(); bctx.moveTo(r.cx-r.pw/2-3, r.py+r.ph/2); bctx.lineTo(r.cx+r.pw/2+3, r.py+r.ph/2); bctx.stroke();
     }
-    y = py;
+  }
+  // 选中高亮
+  if(G.selPart>=0 && rects[G.selPart]){
+    const r=rects[G.selPart];
+    bctx.strokeStyle='#ffd23c'; bctx.lineWidth=2.5;
+    bctx.strokeRect(r.cx-r.pw/2-3, r.py-2, r.pw+6, r.ph+4);
   }
   bctx.strokeStyle='rgba(120,160,220,.25)';
   bctx.setLineDash([4,4]);
@@ -381,8 +416,12 @@ function drawBuild(){
   bctx.setLineDash([]);
   updateBuildStats(s);
 }
-function drawPartShape(c, cx, py, pw, ph, d, alpha){
+function drawPartShape(c, cx, py, pw, ph, d, alpha, flip){
   c.save(); c.globalAlpha = alpha;
+  if(flip && (flip.h||flip.v)){
+    const cy = py+ph/2;
+    c.translate(cx, cy); c.scale(flip.h?-1:1, flip.v?-1:1); c.translate(-cx, -cy);
+  }
   c.fillStyle = d.color;
   roundRect(c, cx-pw/2, py, pw, ph, 3); c.fill();
   c.strokeStyle='rgba(0,0,0,.4)'; c.lineWidth=1; c.stroke();
@@ -456,11 +495,17 @@ LANDABLE.forEach(b=>{
 
 // 零件按钮
 const partList = document.getElementById('partList');
+function addPart(key, index){
+  if(index===undefined || index<0 || index>G.parts.length) index=G.parts.length;
+  G.parts.splice(index,0,key);
+  G.flips.splice(index,0,{h:false,v:false});
+  drawBuild();
+}
 PALETTE_GROUPS.forEach(grp=>{
   const h=document.createElement('div'); h.className='grp'; h.textContent=grp.title; partList.appendChild(h);
   grp.items.forEach(key=>{
     const d=PARTS[key];
-    const b=document.createElement('div'); b.className='partBtn';
+    const b=document.createElement('div'); b.className='partBtn'; b.draggable=true;
     let info=`质量 ${d.mass}`;
     if(d.fuel) info+=` · 燃料 ${d.fuel}`;
     if(d.thrust) info+=` · 推力 ${fmt(d.thrust)}N`;
@@ -468,14 +513,50 @@ PALETTE_GROUPS.forEach(grp=>{
     if(d.elec) info+=` · 电 ${d.elec}`;
     if(d.elecGen) info+=` · +${d.elecGen}/s`;
     b.innerHTML=`<span>${d.name}</span><small>${info}</small>`;
-    b.onclick=()=>{ G.parts.push(key); drawBuild(); };
+    b.title='拖拽到火箭上添加（或点击加入顶部）';
+    b.ondragstart=(e)=>{ e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed='copy'; };
+    b.onclick=()=>{ addPart(key, -1); };
     partList.appendChild(b);
   });
 });
-document.getElementById('removeBtn').onclick=()=>{
-  if(G.parts.length>1 && G.parts[G.parts.length-1]!=='pod' && G.parts[G.parts.length-1]!=='probe'){ G.parts.pop(); drawBuild(); }
+// 建造画布：拖放添加 + 点击选中
+buildCanvas.ondragover=(e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; buildCanvas.classList.add('drop'); };
+buildCanvas.ondragleave=()=>{ buildCanvas.classList.remove('drop'); };
+buildCanvas.ondrop=(e)=>{
+  e.preventDefault(); buildCanvas.classList.remove('drop');
+  const key=e.dataTransfer.getData('text/plain');
+  if(!PARTS[key]) return;
+  const rect=buildCanvas.getBoundingClientRect();
+  const y=(e.clientY-rect.top)*(buildCanvas.height/rect.height);
+  const idx=insertIndexAt(y);
+  addPart(key, idx); G.selPart=idx; drawBuild();
 };
-document.getElementById('clearBtn').onclick=()=>{ G.parts=['pod']; drawBuild(); };
+buildCanvas.onclick=(e)=>{
+  const rect=buildCanvas.getBoundingClientRect();
+  const y=(e.clientY-rect.top)*(buildCanvas.height/rect.height);
+  const rects=buildPartRects();
+  let sel=-1;
+  for(const r of rects){ if(y>=r.py && y<=r.py+r.ph){ sel=r.i; break; } }
+  G.selPart=sel; drawBuild();
+};
+function flipSel(axis){
+  const idx = G.selPart>=0 ? G.selPart : G.parts.length-1;
+  if(idx<0) return;
+  G.flips[idx]=G.flips[idx]||{h:false,v:false};
+  G.flips[idx][axis]=!G.flips[idx][axis];
+  drawBuild();
+}
+document.getElementById('flipVBtn').onclick=()=>flipSel('v');
+document.getElementById('flipHBtn').onclick=()=>flipSel('h');
+document.getElementById('removeBtn').onclick=()=>{
+  const idx = G.selPart>=0 ? G.selPart : G.parts.length-1;
+  if(G.parts.length>1 && G.parts[idx]!=='pod' && G.parts[idx]!=='probe'){
+    G.parts.splice(idx,1); G.flips.splice(idx,1);
+    if(G.selPart>=G.parts.length) G.selPart=G.parts.length-1;
+    drawBuild();
+  }
+};
+document.getElementById('clearBtn').onclick=()=>{ G.parts=['pod']; G.flips=[{h:false,v:false}]; G.selPart=-1; drawBuild(); };
 
 //==================================================================
 //  发射 → 飞行状态
@@ -499,6 +580,7 @@ function startFlight(){
     vx: body.vx, vy: body.vy,
     angle, angVel:0,
     parts: G.parts.slice(),
+    flips: G.flips.slice(),
     dry:0, fuel:s.fuel, fuelMax:s.fuel, thrust:0, ispAvg:0,
     rcsFuel:s.rcsFuel, rcsFuelMax:s.rcsFuel, rcsThrust:0,
     elec:s.elecCap, elecMax:s.elecCap, elecUse:s.elecUse, elecGen:s.elecGen,
@@ -772,15 +854,18 @@ function stage(){
   if(idx<0){
     // 若无分离器，尝试抛掉最底部的整流罩
     if(sh.parts.length>1 && PARTS[sh.parts[sh.parts.length-1]].role==='fairing'){
-      jettison(sh.parts.slice(sh.parts.length-1), sh.parts.slice(0, sh.parts.length-1));
+      const li=sh.parts.length-1;
+      jettison(sh.parts.slice(li), sh.parts.slice(0, li), (sh.flips||[]).slice(li), (sh.flips||[]).slice(0, li));
     }
     return;
   }
   const dropParts = sh.parts.slice(idx);          // 含分离器及以下
   const keepParts = sh.parts.slice(0, idx);
-  jettison(dropParts, keepParts);
+  const dropFlips = (sh.flips||[]).slice(idx);
+  const keepFlips = (sh.flips||[]).slice(0, idx);
+  jettison(dropParts, keepParts, dropFlips, keepFlips);
 }
-function jettison(dropParts, keepParts){
+function jettison(dropParts, keepParts, dropFlips, keepFlips){
   const sh=G.ship;
   // 计算被抛部分的质量/燃料
   let dm=0, df=0, dr=0;
@@ -788,12 +873,13 @@ function jettison(dropParts, keepParts){
   // 残骸
   const fdir={x:Math.sin(sh.angle), y:-Math.cos(sh.angle)};
   const kick=10;
-  G.debris.push({ parts:dropParts, x:sh.x, y:sh.y,
+  G.debris.push({ parts:dropParts, flips:dropFlips||[], x:sh.x, y:sh.y,
     vx:sh.vx - fdir.x*kick, vy:sh.vy - fdir.y*kick,
     angle:sh.angle, angVel:0.4, life:9999 });
   if(G.debris.length>14) G.debris.shift();
   // 主动飞船更新
   sh.parts = keepParts;
+  sh.flips = (keepFlips && keepFlips.length===keepParts.length) ? keepFlips : keepParts.map(()=>({h:false,v:false}));
   recomputeShip(sh);
   sh.fuel = Math.max(0, sh.fuel - df);
   sh.fuelMax = sh.fuel;
@@ -987,7 +1073,7 @@ function drawShip(){
     const d=PARTS[sh.parts[i]];
     const ph=d.h*sc, pw=d.w*sc;
     const py=yOff-ph/2;
-    drawPartShape(ctx, 0, py, pw, ph, d, 1);
+    drawPartShape(ctx, 0, py, pw, ph, d, 1, (sh.flips && sh.flips[i]) || {h:false,v:false});
     yOff-=ph;
   }
   // 对接端口高亮
@@ -1126,7 +1212,7 @@ function showState(){
   document.getElementById('hud').classList.toggle('hidden', !(G.state==='flight'||G.state==='landed'));
   document.getElementById('endOverlay').classList.add('hidden');
 }
-function toBuild(){ G.state='build'; drawBuild(); showState(); }
+function toBuild(){ G.state='build'; G.selPart=-1; drawBuild(); showState(); }
 function resetToBuild(){ G.particles=[]; G.debris=[]; toBuild(); }
 function showEnd(win, body){
   const ov=document.getElementById('endOverlay');
@@ -1193,7 +1279,7 @@ requestAnimationFrame(loop);
 
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild};
 }
 </script>
 </body>
