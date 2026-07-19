@@ -30,13 +30,14 @@
   .card p { font-size:13px; color:#9fb4dd; line-height:1.6; }
   .tag { display:inline-block; margin-top:12px; font-size:11px; color:#7fffd4;
     background:rgba(20,40,40,.5); padding:3px 9px; border-radius:20px; }
-  .qr-box { margin-top:36px; display:flex; flex-direction:column; align-items:center; gap:10px;
+  .qr-box { margin-top:0; display:flex; align-items:center; flex-wrap:wrap; justify-content:center; gap:16px;
     background:linear-gradient(160deg,#13203a,#0c1526); border:1px solid #25365c;
-    border-radius:16px; padding:20px 24px; box-shadow:0 0 22px rgba(74,163,255,.18); }
-  .qr-code { background:#fff; padding:12px; border-radius:12px; line-height:0; }
-  .qr-code svg { display:block; width:176px; height:176px; }
+    border-radius:16px; padding:14px 20px; box-shadow:0 0 22px rgba(74,163,255,.18); max-width:560px; }
+  .qr-code { background:#fff; padding:8px; border-radius:10px; line-height:0; flex:0 0 auto; }
+  .qr-code svg { display:block; width:112px; height:112px; }
+  .qr-text { display:flex; flex-direction:column; gap:6px; text-align:left; }
   .qr-tip { font-size:14px; color:#8fb6ff; letter-spacing:1px; }
-  .qr-url { font-size:12px; color:#5f7299; word-break:break-all; max-width:240px; text-align:center; }
+  .qr-url { font-size:12px; color:#5f7299; word-break:break-all; max-width:260px; }
   .comments { margin-top:36px; width:100%; max-width:760px; background:linear-gradient(160deg,#13203a,#0c1526);
     border:1px solid #25365c; border-radius:16px; padding:20px 22px; box-shadow:0 0 22px rgba(74,163,255,.12); }
   .comments-title { font-size:22px; margin-bottom:14px; color:#e8eefc; text-align:center; letter-spacing:2px; }
@@ -53,12 +54,14 @@
       <div class="tab" id="tabComments" data-tab="comments">💬 留言板</div>
     </div>
   <div id="panelHome">
-    <div class="grid" id="grid"></div>
     <div class="qr-box">
       <div class="qr-code" id="qrCode"></div>
-      <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
-      <div class="qr-url" id="qrUrl"></div>
+      <div class="qr-text">
+        <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
+        <div class="qr-url" id="qrUrl"></div>
+      </div>
     </div>
+    <div class="grid" id="grid"></div>
   </div>
   <section class="comments" id="panelComments" style="display:none">
     <h2 class="comments-title" id="commentsTitle">留言板</h2>
