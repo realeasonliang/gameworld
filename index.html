@@ -25,14 +25,27 @@
   .card p { font-size:13px; color:#9fb4dd; line-height:1.6; }
   .tag { display:inline-block; margin-top:12px; font-size:11px; color:#7fffd4;
     background:rgba(20,40,40,.5); padding:3px 9px; border-radius:20px; }
+  .qr-box { margin-top:36px; display:flex; flex-direction:column; align-items:center; gap:10px;
+    background:linear-gradient(160deg,#13203a,#0c1526); border:1px solid #25365c;
+    border-radius:16px; padding:20px 24px; box-shadow:0 0 22px rgba(74,163,255,.18); }
+  .qr-code { background:#fff; padding:12px; border-radius:12px; line-height:0; }
+  .qr-code svg { display:block; width:176px; height:176px; }
+  .qr-tip { font-size:14px; color:#8fb6ff; letter-spacing:1px; }
+  .qr-url { font-size:12px; color:#5f7299; word-break:break-all; max-width:240px; text-align:center; }
   footer { margin-top:40px; font-size:12px; color:#5f7299; }
-</style>
+  </style>
+  <script src="assets/qrcode.min.js"></script>
 </head>
 <body>
   <div class="lang-switch" id="langSwitch">🌐 EN</div>
   <h1 id="siteTitle">我的游戏世界</h1>
   <div class="sub" id="siteSub">GAME WORLD · 三个纯前端 HTML5 小游戏</div>
   <div class="grid" id="grid"></div>
+  <div class="qr-box">
+    <div class="qr-code" id="qrCode"></div>
+    <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
+    <div class="qr-url" id="qrUrl"></div>
+  </div>
   <footer id="siteFooter">Made by Eason Liang · 上海市 · 即将小学五年级</footer>
 
 <script>
@@ -42,15 +55,33 @@
       title: '我的游戏世界',
       sub: 'GAME WORLD · 三个纯前端 HTML5 小游戏',
       footer: 'Made by Eason Liang · 上海市 · 即将小学五年级',
-      switchTo: 'EN'
+      switchTo: 'EN',
+      qrTip: '扫码访问我的网站'
     },
     en: {
       title: 'My Game World',
       sub: 'GAME WORLD · Three pure-frontend HTML5 games',
       footer: 'Made by Eason Liang · Shanghai · Rising 5th grader',
-      switchTo: '中文'
+      switchTo: '中文',
+      qrTip: 'Scan to visit my site'
     }
   };
+
+  // ===== 站点地址（二维码扫码后打开的网址，改这里即可） =====
+  const SITE_URL = 'https://gameworld-pages.pages.dev/';
+
+  // ===== 生成二维码（纯本地生成，无需联网） =====
+  (function renderQR() {
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(SITE_URL);
+      qr.make();
+      document.getElementById('qrCode').innerHTML = qr.createSvgTag(4, 8);
+      document.getElementById('qrUrl').textContent = SITE_URL;
+    } catch (e) {
+      document.getElementById('qrCode').textContent = 'QR 生成失败';
+    }
+  })();
 
   // ===== 游戏列表（加新游戏只需在此加一条） =====
   const GAMES = [
@@ -99,6 +130,7 @@
     document.getElementById('siteSub').textContent = t.sub;
     document.getElementById('siteFooter').textContent = t.footer;
     document.getElementById('langSwitch').textContent = '🌐 ' + t.switchTo;
+    document.getElementById('qrTip').textContent = t.qrTip;
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
