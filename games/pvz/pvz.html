@@ -96,12 +96,12 @@
 <body>
 <div id="game-container">
   <canvas id="gameCanvas" width="900" height="580"></canvas>
-  <button id="pause-btn">暂停</button>
+  <button id="pause-btn" data-i18n="pvz_pause">暂停</button>
 
   <div id="menu-overlay" class="overlay">
-    <h1>植物大战僵尸</h1>
-    <div class="subtitle">PLANTS VS. ZOMBIES</div>
-    <div class="instructions">
+    <h1 data-i18n="pvz_title_game">植物大战僵尸</h1>
+    <div class="subtitle" data-i18n="pvz_subtitle">PLANTS VS. ZOMBIES</div>
+    <div class="instructions" data-i18n="pvz_instructions">
       <p>🎯 <strong>目标：</strong>种植植物抵御10波僵尸进攻，保卫家园！</p>
       <p>☀️ <strong>阳光：</strong>点击天空掉落和向日葵产出的阳光收集</p>
       <p>🌱 <strong>种植：</strong>点上方植物卡片选中，再点草坪格子放置</p>
@@ -111,32 +111,33 @@
       <p>📝 <strong>答题挑战：</strong>游戏中会随机出现数学/英语题，<strong>答对才能继续</strong>游戏！</p>
     </div>
     <div class="plant-list" id="plant-preview"></div>
-    <button class="btn" onclick="startGame()">开始游戏</button>
+    <button class="btn" data-i18n="pvz_start" onclick="startGame()">开始游戏</button>
   </div>
 
   <div id="gameover-overlay" class="overlay">
-    <h1 style="color:#ff4444">游戏结束</h1>
-    <div class="subtitle" style="color:#ff8888">僵尸吃掉了你的脑子！</div>
+    <h1 style="color:#ff4444" data-i18n="pvz_gameover">游戏结束</h1>
+    <div class="subtitle" style="color:#ff8888" data-i18n="pvz_gameover_sub">僵尸吃掉了你的脑子！</div>
     <div id="gameover-stats" style="color:#ddd; margin-bottom:25px; font-size:16px;"></div>
-    <button class="btn" onclick="startGame()">重新开始</button>
+    <button class="btn" data-i18n="pvz_restart" onclick="startGame()">重新开始</button>
   </div>
 
   <div id="victory-overlay" class="overlay">
-    <h1 style="color:#ffdd44">胜利！</h1>
-    <div class="subtitle" style="color:#aaffaa">你成功保卫了家园！</div>
+    <h1 style="color:#ffdd44" data-i18n="pvz_victory">胜利！</h1>
+    <div class="subtitle" style="color:#aaffaa" data-i18n="pvz_victory_sub">你成功保卫了家园！</div>
     <div id="victory-stats" style="color:#ddd; margin-bottom:25px; font-size:16px;"></div>
-    <button class="btn" onclick="startGame()">再玩一次</button>
+    <button class="btn" data-i18n="pvz_playagain" onclick="startGame()">再玩一次</button>
   </div>
 
   <div id="quiz-overlay" class="overlay">
     <div class="qtitle" id="quiz-title">📐 数学题</div>
-    <div class="qhint">答对才能继续游戏 · 答对可获得阳光奖励</div>
+    <div class="qhint" data-i18n="pvz_quiz_hint">答对才能继续游戏 · 答对可获得阳光奖励</div>
     <div class="qtext" id="quiz-q"></div>
     <div id="quiz-options"></div>
     <div id="quiz-feedback"></div>
   </div>
 </div>
 
+<script src="../../assets/i18n.js"></script>
 <script>
 // ===================== 常量 =====================
 const CW = 900, CH = 580;
@@ -148,14 +149,15 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 const PLANT_DEFS = {
-  sunflower:  { name:'向日葵',   cost:50,  hp:300,  cooldown:7500 },
-  peashooter: { name:'豌豆射手', cost:100, hp:300,  cooldown:7500 },
-  wallnut:    { name:'坚果墙',   cost:50,  hp:4000, cooldown:30000 },
-  cherrybomb: { name:'樱桃炸弹', cost:150, hp:300,  cooldown:50000 },
-  snowpea:    { name:'寒冰射手', cost:175, hp:300,  cooldown:7500 },
-  repeater:   { name:'双发射手', cost:200, hp:300,  cooldown:7500 }
+  sunflower:  { name:'向日葵',   nameEn:'Sunflower',   cost:50,  hp:300,  cooldown:7500 },
+  peashooter: { name:'豌豆射手', nameEn:'Peashooter',  cost:100, hp:300,  cooldown:7500 },
+  wallnut:    { name:'坚果墙',   nameEn:'Wall-nut',    cost:50,  hp:4000, cooldown:30000 },
+  cherrybomb: { name:'樱桃炸弹', nameEn:'Cherry Bomb', cost:150, hp:300,  cooldown:50000 },
+  snowpea:    { name:'寒冰射手', nameEn:'Snow Pea',    cost:175, hp:300,  cooldown:7500 },
+  repeater:   { name:'双发射手', nameEn:'Repeater',    cost:200, hp:300,  cooldown:7500 }
 };
 const PLANT_KEYS = ['sunflower','peashooter','wallnut','cherrybomb','snowpea','repeater'];
+function plantName(k){ const d=PLANT_DEFS[k]; if(!d) return k; return i18n.lang==='zh' ? (d.name||k) : (d.nameEn||d.name||k); }
 
 const ZOMBIE_DEFS = {
   basic:     { hp:200,  speed:0.018, damage:1 },
@@ -249,6 +251,7 @@ function xToCol(x){ return Math.floor((x-GRID_X)/CELL_W); }
 function yToRow(y){ return Math.floor((y-GRID_Y)/CELL_H); }
 function rand(a,b){ return a+Math.random()*(b-a); }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function Q(zh,en){ return i18n.lang==='zh'?zh:en; }
 
 // ===================== 粒子 =====================
 class Particle{
@@ -629,7 +632,7 @@ function drawProgressBar(){
   // 旗标
   for(let i=1;i<=total;i++){ const fx=x0+w*(i/total); ctx.fillStyle='#fff'; ctx.fillRect(fx,y-6,1,12); }
   ctx.fillStyle='#fff'; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('波次 '+Math.min(currentWave+1,total)+' / '+total, x0, y-14);
+  ctx.fillText(i18n.t('pvz_wave')+' '+Math.min(currentWave+1,total)+' / '+total, x0, y-14);
 }
 function drawWaveAnnouncement(){
   if(waveAnnouncement<=0) return;
@@ -653,8 +656,8 @@ function startWave(){
   spawnQueue.sort((a,b)=>a.delay-b.delay);
   spawnTimer=0;
   waveState='SPAWNING';
-  if(wave.zombies.some(z=>z.t==='flag')){ waveAnnouncement=3000; waveAnnouncementText='一大波僵尸来袭！'; }
-  else { waveAnnouncement=1800; waveAnnouncementText='第 '+currentWave+' 波'; }
+  if(wave.zombies.some(z=>z.t==='flag')){ waveAnnouncement=3000; waveAnnouncementText=i18n.t('pvz_big_wave'); }
+  else { waveAnnouncement=1800; waveAnnouncementText=i18n.t('pvz_wave_n').replace('{n}', currentWave); }
 }
 function updateWaves(dt){
   if(waveState==='WAITING'){
@@ -699,13 +702,13 @@ function startGame(){
 }
 function gameOver(){
   gameState='GAMEOVER'; quizActive=false; document.getElementById('quiz-overlay').style.display='none'; playSound('gameover');
-  document.getElementById('gameover-stats').innerHTML='撑到了第 '+Math.min(currentWave+1,WAVES.length)+' 波 · 消灭僵尸 '+totalKills+' 只';
+  const w=Math.min(currentWave+1,WAVES.length); document.getElementById('gameover-stats').innerHTML=i18n.t('pvz_gameover_stats').replace('{w}', w).replace('{k}', totalKills);
   document.getElementById('gameover-overlay').style.display='flex';
   document.getElementById('pause-btn').style.display='none';
 }
 function victory(){
   gameState='VICTORY'; quizActive=false; document.getElementById('quiz-overlay').style.display='none'; playSound('victory');
-  document.getElementById('victory-stats').innerHTML='你消灭了全部 '+totalKills+' 只僵尸！';
+  document.getElementById('victory-stats').innerHTML=i18n.t('pvz_victory_stats').replace('{k}', totalKills);
   document.getElementById('victory-overlay').style.display='flex';
   document.getElementById('pause-btn').style.display='none';
 }
@@ -750,8 +753,8 @@ canvas.addEventListener('click',e=>{
   }
 });
 canvas.addEventListener('contextmenu',e=>{ e.preventDefault(); selectedPlant=null; shovelMode=false; });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ selectedPlant=null; shovelMode=false; } if(e.key===' '){ if(gameState==='PLAYING'){ paused=!paused; document.getElementById('pause-btn').textContent=paused?'继续':'暂停'; } } });
-document.getElementById('pause-btn').addEventListener('click',()=>{ if(gameState==='PLAYING'){ paused=!paused; document.getElementById('pause-btn').textContent=paused?'继续':'暂停'; } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ selectedPlant=null; shovelMode=false; } if(e.key===' '){ if(gameState==='PLAYING'){ paused=!paused; document.getElementById('pause-btn').textContent=paused?i18n.t('pvz_resume'):i18n.t('pvz_pause'); } } });
+document.getElementById('pause-btn').addEventListener('click',()=>{ if(gameState==='PLAYING'){ paused=!paused; document.getElementById('pause-btn').textContent=paused?i18n.t('pvz_resume'):i18n.t('pvz_pause'); } });
 
 // ===================== 答题挑战（随机数学/英语题） =====================
 function randInt(a,b){ return Math.floor(rand(a,b+1)); }
@@ -781,52 +784,52 @@ const MATH_GENS=[
         if(sum>=den){ correct='1'; wrongs=[`${randInt(1,den-1)}/${den}`,`${(sum-1)%den||1}/${den}`,`${den+1}/${den}`]; }
         else { correct=`${sum}/${den}`; wrongs=[]; let g=0; while(wrongs.length<3 && g<60){ g++; const nn=randInt(1,den-1), v=`${nn}/${den}`; if(v!==correct && !wrongs.includes(v)) wrongs.push(v); } }
         return buildQuiz(`${n1}/${den} + ${n2}/${den} = ?`, correct, wrongs); },
-  ()=>{ const len=randInt(3,15), wid=randInt(3,15), area=len*wid; return buildQuiz(`一个长方形长 ${len} 厘米、宽 ${wid} 厘米，面积是多少平方厘米？`, area, numWrongs(area,3)); },
-  ()=>{ const len=randInt(3,15), wid=randInt(3,15), peri=2*(len+wid); return buildQuiz(`一个长方形长 ${len} 厘米、宽 ${wid} 厘米，周长是多少厘米？`, peri, numWrongs(peri,3)); },
-  ()=>{ const bags=randInt(2,6), per=randInt(5,15), total=bags*per; return buildQuiz(`小明有 ${bags} 袋糖果，每袋 ${per} 颗，一共有多少颗？`, total, numWrongs(total,3)); },
+  ()=>{ const len=randInt(3,15), wid=randInt(3,15), area=len*wid; return buildQuiz(Q(`一个长方形长 ${len} 厘米、宽 ${wid} 厘米，面积是多少平方厘米？`, `A rectangle is ${len} cm long and ${wid} cm wide. What is its area in cm²?`), area, numWrongs(area,3)); },
+  ()=>{ const len=randInt(3,15), wid=randInt(3,15), peri=2*(len+wid); return buildQuiz(Q(`一个长方形长 ${len} 厘米、宽 ${wid} 厘米，周长是多少厘米？`, `A rectangle is ${len} cm long and ${wid} cm wide. What is its perimeter in cm?`), peri, numWrongs(peri,3)); },
+  ()=>{ const bags=randInt(2,6), per=randInt(5,15), total=bags*per; return buildQuiz(Q(`小明有 ${bags} 袋糖果，每袋 ${per} 颗，一共有多少颗？`, `${bags} bags of candy, ${per} in each. How many pieces in total?`), total, numWrongs(total,3)); },
   ()=>{ const a=randInt(10,40), b=randInt(5,30), c=randInt(2,9), ans=(a+b)*c; return buildQuiz(`(${a} + ${b}) × ${c} = ?`, ans, numWrongs(ans,3)); }
 ];
 // 英语题库（面向小学四年级以上）
 const ENGLISH_Q=[
-  {q:'“apple” 是什么意思？', correct:'苹果', wrongs:['香蕉','橙子','梨']},
-  {q:'“school” 是什么意思？', correct:'学校', wrongs:['书本','老师','学生']},
-  {q:'“teacher” 是什么意思？', correct:'老师', wrongs:['学生','学校','医生']},
-  {q:'“water” 是什么意思？', correct:'水', wrongs:['火','牛奶','茶']},
-  {q:'“happy” 是什么意思？', correct:'快乐的', wrongs:['悲伤的','生气的','累的']},
-  {q:'“run” 是什么意思？', correct:'跑', wrongs:['走','跳','飞']},
-  {q:'“green” 是什么意思？', correct:'绿色', wrongs:['红色','蓝色','黄色']},
-  {q:'“cat” 是什么意思？', correct:'猫', wrongs:['狗','鸟','鱼']},
-  {q:'“sun” 是什么意思？', correct:'太阳', wrongs:['月亮','星星','云']},
-  {q:'“苹果” 的英文是？', correct:'apple', wrongs:['banana','orange','pear']},
-  {q:'“学校” 的英文是？', correct:'school', wrongs:['book','teacher','student']},
-  {q:'“水” 的英文是？', correct:'water', wrongs:['fire','milk','tea']},
-  {q:'“红色的” 的英文是？', correct:'red', wrongs:['blue','green','yellow']},
-  {q:'“书” 的英文是？', correct:'book', wrongs:['pen','bag','desk']},
-  {q:'“朋友” 的英文是？', correct:'friend', wrongs:['family','student','teacher']},
-  {q:'“眼睛” 的英文是？', correct:'eye', wrongs:['ear','nose','mouth']},
-  {q:'“大的” 的英文是？', correct:'big', wrongs:['small','tall','long']},
-  {q:'“go” 的过去式是？', correct:'went', wrongs:['goed','gone','going']},
-  {q:'“eat” 的过去式是？', correct:'ate', wrongs:['eated','eaten','eat']},
-  {q:'“child” 的复数是？', correct:'children', wrongs:['childs','childes','child']},
-  {q:'“big” 的比较级是？', correct:'bigger', wrongs:['biger','more big','big']},
-  {q:'“good” 的最高级是？', correct:'best', wrongs:['gooder','better','most good']},
-  {q:'“I ___ a student.” 横线处填？', correct:'am', wrongs:['is','are','be']},
-  {q:'“He ___ to school every day.” 横线处填？', correct:'goes', wrongs:['go','going','went']},
-  {q:'“two” 的序数词是？', correct:'second', wrongs:['twice','two','too']},
-  {q:'“big” 的反义词是？', correct:'small', wrongs:['tall','short','long']},
-  {q:'“hot” 的反义词是？', correct:'cold', wrongs:['warm','wet','cool']},
-  {q:'“up” 的反义词是？', correct:'down', wrongs:['on','off','in']},
-  {q:'哪个是 “朋友” 的正确拼写？', correct:'friend', wrongs:['freind','frind','freand']},
-  {q:'“open” 的反义词是？', correct:'close', wrongs:['start','end','show']}
+  {q:'“apple” 是什么意思？', qEn:'What does "apple" mean?', correct:'苹果', correctEn:'apple', wrongs:['香蕉','橙子','梨'], wrongsEn:['banana','orange','pear']},
+  {q:'“school” 是什么意思？', qEn:'What does "school" mean?', correct:'学校', correctEn:'school', wrongs:['书本','老师','学生'], wrongsEn:['book','teacher','student']},
+  {q:'“teacher” 是什么意思？', qEn:'What does "teacher" mean?', correct:'老师', correctEn:'teacher', wrongs:['学生','学校','医生'], wrongsEn:['student','school','doctor']},
+  {q:'“water” 是什么意思？', qEn:'What does "water" mean?', correct:'水', correctEn:'water', wrongs:['火','牛奶','茶'], wrongsEn:['fire','milk','tea']},
+  {q:'“happy” 是什么意思？', qEn:'What does "happy" mean?', correct:'快乐的', correctEn:'happy', wrongs:['悲伤的','生气的','累的'], wrongsEn:['sad','angry','tired']},
+  {q:'“run” 是什么意思？', qEn:'What does "run" mean?', correct:'跑', correctEn:'run', wrongs:['走','跳','飞'], wrongsEn:['walk','jump','fly']},
+  {q:'“green” 是什么意思？', qEn:'What does "green" mean?', correct:'绿色', correctEn:'green', wrongs:['红色','蓝色','黄色'], wrongsEn:['red','blue','yellow']},
+  {q:'“cat” 是什么意思？', qEn:'What does "cat" mean?', correct:'猫', correctEn:'cat', wrongs:['狗','鸟','鱼'], wrongsEn:['dog','bird','fish']},
+  {q:'“sun” 是什么意思？', qEn:'What does "sun" mean?', correct:'太阳', correctEn:'sun', wrongs:['月亮','星星','云'], wrongsEn:['moon','star','cloud']},
+  {q:'“苹果” 的英文是？', qEn:'How do you say "苹果" in English?', correct:'apple', correctEn:'apple', wrongs:['香蕉','橙子','梨'], wrongsEn:['banana','orange','pear']},
+  {q:'“学校” 的英文是？', qEn:'How do you say "学校" in English?', correct:'school', correctEn:'school', wrongs:['书本','老师','学生'], wrongsEn:['book','teacher','student']},
+  {q:'“水” 的英文是？', qEn:'How do you say "水" in English?', correct:'water', correctEn:'water', wrongs:['火','牛奶','茶'], wrongsEn:['fire','milk','tea']},
+  {q:'“红色的” 的英文是？', qEn:'How do you say "红色的" in English?', correct:'red', correctEn:'red', wrongs:['蓝色','绿色','黄色'], wrongsEn:['blue','green','yellow']},
+  {q:'“书” 的英文是？', qEn:'How do you say "书" in English?', correct:'book', correctEn:'book', wrongs:['笔','包','桌'], wrongsEn:['pen','bag','desk']},
+  {q:'“朋友” 的英文是？', qEn:'How do you say "朋友" in English?', correct:'friend', correctEn:'friend', wrongs:['家庭','学生','老师'], wrongsEn:['family','student','teacher']},
+  {q:'“眼睛” 的英文是？', qEn:'How do you say "眼睛" in English?', correct:'eye', correctEn:'eye', wrongs:['耳朵','鼻子','嘴'], wrongsEn:['ear','nose','mouth']},
+  {q:'“大的” 的英文是？', qEn:'How do you say "大的" in English?', correct:'big', correctEn:'big', wrongs:['小的','高的','长的'], wrongsEn:['small','tall','long']},
+  {q:'“go” 的过去式是？', qEn:'What is the past tense of "go"?', correct:'went', correctEn:'went', wrongs:['goed','gone','going'], wrongsEn:['goed','gone','going']},
+  {q:'“eat” 的过去式是？', qEn:'What is the past tense of "eat"?', correct:'ate', correctEn:'ate', wrongs:['eated','eaten','eat'], wrongsEn:['eated','eaten','eat']},
+  {q:'“child” 的复数是？', qEn:'What is the plural of "child"?', correct:'children', correctEn:'children', wrongs:['childs','childes','child'], wrongsEn:['childs','childes','child']},
+  {q:'“big” 的比较级是？', qEn:'What is the comparative of "big"?', correct:'bigger', correctEn:'bigger', wrongs:['biger','more big','big'], wrongsEn:['biger','more big','big']},
+  {q:'“good” 的最高级是？', qEn:'What is the superlative of "good"?', correct:'best', correctEn:'best', wrongs:['gooder','better','most good'], wrongsEn:['gooder','better','most good']},
+  {q:'“I ___ a student.” 横线处填？', qEn:'Fill in the blank: "I ___ a student."', correct:'am', correctEn:'am', wrongs:['is','are','be'], wrongsEn:['is','are','be']},
+  {q:'“He ___ to school every day.” 横线处填？', qEn:'Fill in the blank: "He ___ to school every day."', correct:'goes', correctEn:'goes', wrongs:['go','going','went'], wrongsEn:['go','going','went']},
+  {q:'“two” 的序数词是？', qEn:'What is the ordinal of "two"?', correct:'second', correctEn:'second', wrongs:['twice','two','too'], wrongsEn:['twice','two','too']},
+  {q:'“big” 的反义词是？', qEn:'What is the antonym of "big"?', correct:'small', correctEn:'small', wrongs:['高的','短的','长的'], wrongsEn:['tall','short','long']},
+  {q:'“hot” 的反义词是？', qEn:'What is the antonym of "hot"?', correct:'cold', correctEn:'cold', wrongs:['warm','wet','cool'], wrongsEn:['warm','wet','cool']},
+  {q:'“up” 的反义词是？', qEn:'What is the antonym of "up"?', correct:'down', correctEn:'down', wrongs:['on','off','in'], wrongsEn:['on','off','in']},
+  {q:'哪个是 “朋友” 的正确拼写？', qEn:'Which is the correct spelling of "朋友"?', correct:'friend', correctEn:'friend', wrongs:['freind','frind','freand'], wrongsEn:['freind','frind','freand']},
+  {q:'“open” 的反义词是？', qEn:'What is the antonym of "open"?', correct:'close', correctEn:'close', wrongs:['start','end','show'], wrongsEn:['start','end','show']}
 ];
 function triggerQuiz(){
   if(gameState!=='PLAYING' || quizActive) return;
   const isMath=Math.random()<0.5;
   let data;
   if(isMath){ data=MATH_GENS[randInt(0,MATH_GENS.length-1)](); }
-  else { const e=ENGLISH_Q[randInt(0,ENGLISH_Q.length-1)]; data=buildQuiz(e.q, e.correct, e.wrongs); }
+  else { const e=ENGLISH_Q[randInt(0,ENGLISH_Q.length-1)]; const q=i18n.lang==='zh'?e.q:e.qEn; const correct=i18n.lang==='zh'?e.correct:e.correctEn; const wrongs=i18n.lang==='zh'?e.wrongs:e.wrongsEn; data=buildQuiz(q, correct, wrongs); }
   quizActive=true;
-  document.getElementById('quiz-title').textContent = isMath ? '📐 数学题' : '🔤 英语题';
+  document.getElementById('quiz-title').textContent = isMath ? i18n.t('pvz_quiz_math') : i18n.t('pvz_quiz_eng');
   document.getElementById('quiz-q').textContent = data.q;
   const fb=document.getElementById('quiz-feedback'); fb.textContent=''; fb.style.color='#fff';
   const box=document.getElementById('quiz-options'); box.innerHTML='';
@@ -843,7 +846,7 @@ function answerQuiz(i, correct, btn){
     quizCorrect++;
     sun+=25;
     const fb=document.getElementById('quiz-feedback');
-    fb.textContent='✅ 答对了！获得 25 阳光，继续战斗！';
+    fb.textContent=i18n.t('pvz_quiz_right');
     fb.style.color='#8fffa0';
     if(btn) btn.classList.add('right');
     playSound('sun');
@@ -856,7 +859,7 @@ function answerQuiz(i, correct, btn){
     }, 700);
   } else {
     const fb=document.getElementById('quiz-feedback');
-    fb.textContent='❌ 答错了，再想一想，答对才能继续哦！';
+    fb.textContent=i18n.t('pvz_quiz_wrong');
     fb.style.color='#ff8888';
     if(btn){ btn.classList.add('wrong'); setTimeout(()=>btn.classList.remove('wrong'), 600); }
   }
@@ -906,7 +909,7 @@ function render(){
   drawTopBar();
   drawProgressBar();
   drawWaveAnnouncement();
-  if(paused){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,CW,CH); ctx.fillStyle='#fff'; ctx.font='bold 48px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('暂停',CW/2,CH/2); }
+  if(paused){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,CW,CH); ctx.fillStyle='#fff'; ctx.font='bold 48px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(i18n.t('pvz_pause'),CW/2,CH/2); }
 }
 function loop(now){
   const dt=Math.min(now-lastTime,50);
@@ -919,13 +922,14 @@ function loop(now){
 // ===================== 菜单预览 =====================
 function buildPreview(){
   const container=document.getElementById('plant-preview');
+  container.innerHTML='';
   PLANT_KEYS.forEach(k=>{
     const d=document.createElement('div'); d.className='plant-info';
     const c=document.createElement('canvas'); c.width=40; c.height=40;
     const cc=c.getContext('2d'); cc.translate(20,20); cc.scale(0.9,0.9);
     const def=PLANT_DEFS[k];
     drawPlantIcon(k,cc);
-    const n=document.createElement('div'); n.className='name'; n.textContent=def.name;
+    const n=document.createElement('div'); n.className='name'; n.textContent=plantName(k);
     const cost=document.createElement('div'); cost.className='cost'; cost.textContent='☀'+def.cost;
     d.appendChild(c); d.appendChild(n); d.appendChild(cost);
     container.appendChild(d);
@@ -942,6 +946,84 @@ function fitScreen(){
 }
 window.addEventListener('resize',fitScreen);
 fitScreen();
+
+// ===================== 国际化（双语） =====================
+function refreshStaticLang(){
+  const pb=document.getElementById('pause-btn');
+  if(pb) pb.textContent = (paused?i18n.t('pvz_resume'):i18n.t('pvz_pause'));
+  if(gameState==='GAMEOVER'){ const w=Math.min(currentWave+1,WAVES.length); const el=document.getElementById('gameover-stats'); if(el) el.innerHTML=i18n.t('pvz_gameover_stats').replace('{w}',w).replace('{k}',totalKills); }
+  if(gameState==='VICTORY'){ const el=document.getElementById('victory-stats'); if(el) el.innerHTML=i18n.t('pvz_victory_stats').replace('{k}',totalKills); }
+}
+i18n.init({
+  dict: {
+    zh: {
+      pvz_title_game: '植物大战僵尸',
+      pvz_subtitle: '抵御僵尸 守卫家园',
+      pvz_instructions: '<p>🎯 <strong>目标：</strong>种植植物抵御10波僵尸进攻，保卫家园！</p>' +
+        '<p>☀️ <strong>阳光：</strong>点击天空掉落和向日葵产出的阳光收集</p>' +
+        '<p>🌱 <strong>种植：</strong>点上方植物卡片选中，再点草坪格子放置</p>' +
+        '<p>🧟 <strong>僵尸：</strong>从右侧来袭，不同僵尸血量不同</p>' +
+        '<p>🚜 <strong>割草机：</strong>每行一台，僵尸到左边时自动启动（一次性）</p>' +
+        '<p>⛏️ <strong>铲子：</strong>移除已种植物，返还一半阳光</p>' +
+        '<p>📝 <strong>答题挑战：</strong>游戏中会随机出现数学/英语题，<strong>答对才能继续</strong>游戏！</p>',
+      pvz_start: '开始游戏',
+      pvz_gameover: '游戏结束',
+      pvz_gameover_sub: '僵尸吃掉了你的脑子！',
+      pvz_restart: '重新开始',
+      pvz_victory: '胜利！',
+      pvz_victory_sub: '你成功保卫了家园！',
+      pvz_playagain: '再玩一次',
+      pvz_pause: '暂停',
+      pvz_resume: '继续',
+      pvz_shovel: '铲子',
+      pvz_wave: '波次',
+      pvz_wave_n: '第 {n} 波',
+      pvz_big_wave: '一大波僵尸来袭！',
+      pvz_gameover_stats: '撑到了第 {w} 波 · 消灭僵尸 {k} 只',
+      pvz_victory_stats: '你消灭了全部 {k} 只僵尸！',
+      pvz_quiz_hint: '答对才能继续游戏 · 答对可获得阳光奖励',
+      pvz_quiz_math: '📐 数学题',
+      pvz_quiz_eng: '🔤 英语题',
+      pvz_quiz_right: '✅ 答对了！获得 25 阳光，继续战斗！',
+      pvz_quiz_wrong: '❌ 答错了，再想一想，答对才能继续哦！'
+    },
+    en: {
+      pvz_title_game: 'Plants vs. Zombies',
+      pvz_subtitle: 'Defend Your Home Against the Zombies',
+      pvz_instructions: '<p>🎯 <strong>Goal:</strong> Plant defenses and survive 10 waves of zombies to protect your home!</p>' +
+        '<p>☀️ <strong>Sun:</strong> Click the falling sun (from the sky and sunflowers) to collect it.</p>' +
+        '<p>🌱 <strong>Plant:</strong> Click a plant card above to select, then click a lawn tile to place.</p>' +
+        '<p>🧟 <strong>Zombies:</strong> They come from the right; different zombies have different HP.</p>' +
+        '<p>🚜 <strong>Lawnmower:</strong> One per row, auto-triggers if a zombie reaches the left (single use).</p>' +
+        '<p>⛏️ <strong>Shovel:</strong> Remove a planted plant and refund half its sun cost.</p>' +
+        '<p>📝 <strong>Quiz challenge:</strong> Random math/English questions appear — <strong>answer correctly to continue</strong>!</p>',
+      pvz_start: 'Start Game',
+      pvz_gameover: 'Game Over',
+      pvz_gameover_sub: 'The zombies ate your brains!',
+      pvz_restart: 'Restart',
+      pvz_victory: 'Victory!',
+      pvz_victory_sub: 'You successfully defended your home!',
+      pvz_playagain: 'Play Again',
+      pvz_pause: 'Pause',
+      pvz_resume: 'Resume',
+      pvz_shovel: 'Shovel',
+      pvz_wave: 'Wave',
+      pvz_wave_n: 'Wave {n}',
+      pvz_big_wave: 'A huge wave of zombies is coming!',
+      pvz_gameover_stats: 'Reached wave {w} · Defeated {k} zombies',
+      pvz_victory_stats: 'You defeated all {k} zombies!',
+      pvz_quiz_hint: 'Answer correctly to continue · correct answers earn sun',
+      pvz_quiz_math: '📐 Math',
+      pvz_quiz_eng: '🔤 English',
+      pvz_quiz_right: '✅ Correct! +25 sun, keep fighting!',
+      pvz_quiz_wrong: '❌ Wrong, think again — answer correctly to continue!'
+    }
+  },
+  onLang: function(){ buildPreview(); refreshStaticLang(); }
+});
+function pvzSetTitle(l){ document.title = (l==='zh'?'植物大战僵尸':'Plants vs. Zombies'); }
+pvzSetTitle(i18n.lang);
+i18n.on(pvzSetTitle);
 
 requestAnimationFrame(loop);
 </script>

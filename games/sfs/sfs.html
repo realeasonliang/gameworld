@@ -11,9 +11,9 @@
 
 <!-- 菜单 -->
 <div id="menu" class="overlay">
-  <h1>航天模拟器</h1>
-  <div class="sub">SPACE FLIGHT SIMULATOR · 建造 · 发射 · 入轨 · 登陆星球 · 对接 · 漫游车</div>
-  <button class="btn" id="startBtn">开始建造火箭</button>
+  <h1 data-i18n="sfs_menu_title">航天模拟器</h1>
+  <div class="sub" data-i18n="sfs_menu_sub">SPACE FLIGHT SIMULATOR · 建造 · 发射 · 入轨 · 登陆星球 · 对接 · 漫游车</div>
+  <button class="btn" id="startBtn" data-i18n="sfs_start_build">开始建造火箭</button>
 </div>
 
 <!-- 建造 -->
@@ -23,19 +23,19 @@
     <div id="buildStats"></div>
   </div>
   <div id="buildRight">
-    <h2>发射天体</h2>
+    <h2 data-i18n="sfs_launch_body">发射天体</h2>
     <div id="bodySel"></div>
-    <h2>零件库</h2>
+    <h2 data-i18n="sfs_part_lib">零件库</h2>
     <div id="partList"></div>
     <div id="buildActions">
-      <button class="btn alt sm" id="removeBtn">删除零件</button>
-      <button class="btn alt sm" id="clearBtn">清空</button>
-      <button class="btn alt sm" id="flipVBtn">↕ 上下翻转</button>
-      <button class="btn alt sm" id="flipHBtn">↔ 左右翻转</button>
+      <button class="btn alt sm" id="removeBtn" data-i18n="sfs_remove">删除零件</button>
+      <button class="btn alt sm" id="clearBtn" data-i18n="sfs_clear">清空</button>
+      <button class="btn alt sm" id="flipVBtn" data-i18n="sfs_flip_v">↕ 上下翻转</button>
+      <button class="btn alt sm" id="flipHBtn" data-i18n="sfs_flip_h">↔ 左右翻转</button>
     </div>
-    <div id="buildHint">拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向</div>
-    <button class="btn" id="launchBtn" style="margin-top:12px;">🚀 发射</button>
-    <button class="btn alt sm" id="backMenuBtn">返回菜单</button>
+    <div id="buildHint" data-i18n="sfs_build_hint">拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向</div>
+    <button class="btn" id="launchBtn" style="margin-top:12px;" data-i18n="sfs_launch">🚀 发射</button>
+    <button class="btn alt sm" id="backMenuBtn" data-i18n="sfs_back_menu">返回菜单</button>
   </div>
 </div>
 
@@ -44,12 +44,12 @@
   <div id="telemetry"></div>
   <div id="dockMsg"></div>
   <div id="topbar">
-    <button class="cb" id="mapBtn">星图 (M)</button>
-    <button class="cb" id="sasBtn">SAS (Z)</button>
-    <button class="cb" id="stageBtn">分级 (Space)</button>
-    <button class="cb" id="roverBtn">漫游车 (G)</button>
+    <button class="cb" id="mapBtn" data-i18n="sfs_map">星图 (M)</button>
+    <button class="cb" id="sasBtn" data-i18n="sfs_sas">SAS (Z)</button>
+    <button class="cb" id="stageBtn" data-i18n="sfs_stage">分级 (Space)</button>
+    <button class="cb" id="roverBtn" data-i18n="sfs_rover">漫游车 (G)</button>
     <button class="cb" id="warpBtn">×1</button>
-    <button class="cb" id="resetBtn">重置 (R)</button>
+    <button class="cb" id="resetBtn" data-i18n="sfs_reset">重置 (R)</button>
   </div>
   <div id="throttleWrap"><div id="throttleBar" style="height:0%"></div></div>
   <div id="throttleTxt">油门 0%</div>
@@ -61,7 +61,7 @@
     <button class="cb" id="sas2">S</button>
     <button class="cb" id="map2">M</button>
   </div>
-  <div id="hint">W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置</div>
+  <div id="hint" data-i18n="sfs_controls">W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置</div>
 </div>
 
 <!-- 结束 -->
@@ -69,11 +69,12 @@
   <h1 id="endTitle"></h1>
   <div class="msg" id="endMsg"></div>
   <div id="endActions">
-    <button class="btn" id="endRetry">重新飞行</button>
-    <button class="btn alt" id="endBuild">回建造台</button>
+    <button class="btn" id="endRetry" data-i18n="sfs_retry">重新飞行</button>
+    <button class="btn alt" id="endBuild" data-i18n="sfs_to_build">回建造台</button>
   </div>
 </div>
 
+<script src="../../assets/i18n.js"></script>
 <script src="sfs.js"></script>
 </body>
 </html>

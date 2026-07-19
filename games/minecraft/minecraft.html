@@ -62,9 +62,9 @@
 <div id="hotbar"></div>
 
 <div id="start-ov" class="overlay">
-  <h1>方块世界</h1>
-  <div class="tag">BLOCKS · 沙盒生存</div>
-  <div class="card">
+  <h1 data-i18n="mc_title">方块世界</h1>
+  <div class="tag" data-i18n="mc_tag">BLOCKS · 沙盒生存</div>
+  <div class="card" data-i18n="mc_card">
     🖱️ <b>鼠标</b> 移动视角 · <b>按住左键</b> 挖掘方块（越硬越慢）· <b>右键</b> 放置方块<br>
     ⌨️ <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · <kbd>空格</kbd> 跳跃 · <kbd>Shift</kbd> 加速<br>
     🎒 <kbd>1</kbd>~<kbd>8</kbd> 或 <b>滚轮</b> 切换方块 · <kbd>ESC</kbd> 暂停<br>
@@ -72,24 +72,25 @@
     💾 <b>ESC</b> 暂停可保存 / 读取存档，进度自动存在本地，关闭页面前也会自动保存。<br>
     🌍 程序生成的无限地形，自由建造你的世界！
   </div>
-  <button class="btn" id="start-btn">开始新游戏</button>
-  <button class="btn" id="continue-btn" style="display:none; margin-top:14px; background:linear-gradient(180deg,#7ad17a,#3f9b4f); border-color:#2c6b35;">继续游戏（读取存档）</button>
+  <button class="btn" id="start-btn" data-i18n="mc_new">开始新游戏</button>
+  <button class="btn" id="continue-btn" style="display:none; margin-top:14px; background:linear-gradient(180deg,#7ad17a,#3f9b4f); border-color:#2c6b35;" data-i18n="mc_continue">继续游戏（读取存档）</button>
 </div>
 
 <div id="pause-ov" class="overlay">
-  <h1 style="font-size:36px">已暂停</h1>
-  <div class="tag">点击空白处继续游戏</div>
+  <h1 style="font-size:36px" data-i18n="mc_paused">已暂停</h1>
+  <div class="tag" data-i18n="mc_resume_tip">点击空白处继续游戏</div>
   <div class="savebar">
-    <button class="sbtn" id="btn-save">保存</button>
-    <button class="sbtn" id="btn-load">读取</button>
-    <button class="sbtn" id="btn-export">导出存档</button>
-    <button class="sbtn" id="btn-import">导入存档</button>
+    <button class="sbtn" id="btn-save" data-i18n="mc_save">保存</button>
+    <button class="sbtn" id="btn-load" data-i18n="mc_load">读取</button>
+    <button class="sbtn" id="btn-export" data-i18n="mc_export">导出存档</button>
+    <button class="sbtn" id="btn-import" data-i18n="mc_import">导入存档</button>
   </div>
   <input type="file" id="file-in" accept="application/json" style="display:none">
 </div>
 
 <div id="toast"></div>
 
+<script src="../../assets/i18n.js"></script>
 <script>
 // ===================== 配置 =====================
 const CW = 8, Y = 22, RENDER_DIST = 5;   // 分块尺寸 / 世界高度 / 渲染距离（方块）
@@ -97,6 +98,8 @@ const AIR=0, GRASS=1, DIRT=2, STONE=3, WOOD=4, LEAVES=5, SAND=6, PLANK=7, GLASS=
 // 热键栏（可放置的方块）
 const HOTBAR = [GRASS, DIRT, STONE, WOOD, LEAVES, SAND, PLANK, GLASS];
 const BLOCK_NAME = {1:'草地',2:'泥土',3:'石头',4:'木头',5:'树叶',6:'沙子',7:'木板',8:'玻璃',9:'基岩'};
+const BLOCK_NAME_EN = {1:'Grass',2:'Dirt',3:'Stone',4:'Wood',5:'Leaves',6:'Sand',7:'Plank',8:'Glass',9:'Bedrock'};
+function blockName(id){ return i18n.lang==='zh' ? (BLOCK_NAME[id]||(''+id)) : (BLOCK_NAME_EN[id]||(''+id)); }
 
 // ===================== 世界数据（分块无限地形） =====================
 const loadedChunks = new Map();            // 'cx,cz' -> chunk
@@ -1037,7 +1040,7 @@ function buildHotbar(){
     s.dataset.i=i;
     const sw=document.createElement('div'); sw.className='sw'; sw.style.background=slotColors[t];
     const num=document.createElement('div'); num.className='num'; num.textContent=(i+1);
-    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=BLOCK_NAME[t];
+    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=blockName(t);
     s.appendChild(sw); s.appendChild(num); s.appendChild(nm);
     s.addEventListener('click',()=>{ selIndex=i; selected=t; updateHotbar(); });
     hb.appendChild(s);
@@ -1051,7 +1054,7 @@ function updateHUD(){
   const bx=Math.floor(player.x), by=Math.floor(player.y), bz=Math.floor(player.z);
   let extra = `移动:WASD · 跳跃:空格<br>生物:${creatures.length}`;
   if(mining.active) extra += `<br>⛏ 挖掘中… ${Math.min(100,Math.floor(mining.progress*100))}%`;
-  hud.innerHTML = `坐标 X:${bx} Y:${by} Z:${bz}<br>当前方块:${BLOCK_NAME[selected]}<br>${extra}`;
+  hud.innerHTML = `坐标 X:${bx} Y:${by} Z:${bz}<br>${i18n.t('mc_cur_block')}:${blockName(selected)}<br>${extra}`;
 }
 
 // ===================== 存档（保存 / 读取 / 导出 / 导入） =====================
@@ -1109,19 +1112,19 @@ function applySave(s){
 function saveLocal(silent){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify(buildSave()));
-    if(!silent) toast('已保存到本地');
+    if(!silent) toast(i18n.t('mc_saved'));
     return true;
-  }catch(err){ if(!silent) toast('保存失败：'+(err&&err.message||err)); return false; }
+  }catch(err){ if(!silent) toast(i18n.t('mc_save_fail')+(err&&err.message||err)); return false; }
 }
 function hasLocalSave(){ try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; } }
 function loadLocal(){
   try{
     const raw=localStorage.getItem(SAVE_KEY);
-    if(!raw){ toast('没有本地存档'); return false; }
+    if(!raw){ toast(i18n.t('mc_no_save')); return false; }
     applySave(JSON.parse(raw));
-    toast('已从本地存档读取');
+    toast(i18n.t('mc_loaded'));
     return true;
-  }catch(err){ toast('读取失败：'+(err&&err.message||err)); return false; }
+  }catch(err){ toast(i18n.t('mc_load_fail')+(err&&err.message||err)); return false; }
 }
 function exportSave(){
   try{
@@ -1133,12 +1136,12 @@ function exportSave(){
     a.download='blockworld-save-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'')+'.json';
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-    toast('存档已导出为文件');
-  }catch(err){ toast('导出失败：'+(err&&err.message||err)); }
+    toast(i18n.t('mc_exported'));
+  }catch(err){ toast(i18n.t('mc_export_fail')+(err&&err.message||err)); }
 }
 function importSave(file){
   const reader=new FileReader();
-  reader.onload=()=>{ try{ applySave(JSON.parse(reader.result)); toast('已导入存档'); }catch(err){ toast('导入失败：'+(err&&err.message||err)); } };
+  reader.onload=()=>{ try{ applySave(JSON.parse(reader.result)); toast(i18n.t('mc_imported')); }catch(err){ toast(i18n.t('mc_import_fail')+(err&&err.message||err)); } };
   reader.readAsText(file);
 }
 // 轻量提示
@@ -1186,6 +1189,75 @@ function frame(now){
   if(playing) updateHUD();
   requestAnimationFrame(frame);
 }
+
+// ===================== 国际化（双语） =====================
+i18n.init({
+  dict: {
+    zh: {
+      mc_title: '方块世界',
+      mc_tag: 'BLOCKS · 沙盒生存',
+      mc_card: '🖱️ <b>鼠标</b> 移动视角 · <b>按住左键</b> 挖掘方块（越硬越慢）· <b>右键</b> 放置方块<br>' +
+               '⌨️ <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · <kbd>空格</kbd> 跳跃 · <kbd>Shift</kbd> 加速<br>' +
+               '🎒 <kbd>1</kbd>~<kbd>8</kbd> 或 <b>滚轮</b> 切换方块 · <kbd>ESC</kbd> 暂停<br>' +
+               '🐮🐑 世界里有牛和羊在游荡，靠近看看它们吧！<br>' +
+               '💾 <b>ESC</b> 暂停可保存 / 读取存档，进度自动存在本地，关闭页面前也会自动保存。<br>' +
+               '🌍 程序生成的无限地形，自由建造你的世界！',
+      mc_new: '开始新游戏',
+      mc_continue: '继续游戏（读取存档）',
+      mc_paused: '已暂停',
+      mc_resume_tip: '点击空白处继续游戏',
+      mc_save: '保存',
+      mc_load: '读取',
+      mc_export: '导出存档',
+      mc_import: '导入存档',
+      mc_cur_block: '当前方块',
+      mc_saved: '已保存',
+      mc_save_fail: '保存失败：',
+      mc_no_save: '没有本地存档',
+      mc_loaded: '已从本地存档读取',
+      mc_load_fail: '读取失败：',
+      mc_exported: '存档已导出为文件',
+      mc_export_fail: '导出失败：',
+      mc_imported: '已导入存档',
+      mc_import_fail: '导入失败：'
+    },
+    en: {
+      mc_title: 'Block World',
+      mc_tag: 'BLOCKS · Sandbox Survival',
+      mc_card: '🖱️ <b>Mouse</b> look around · <b>Hold left button</b> to mine blocks (harder = slower) · <b>Right button</b> to place<br>' +
+               '⌨️ <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint<br>' +
+               '🎒 <kbd>1</kbd>~<kbd>8</kbd> or <b>scroll wheel</b> to switch blocks · <kbd>ESC</kbd> pause<br>' +
+               '🐮🐑 Cows and sheep roam the world — go say hi!<br>' +
+               '💾 <b>ESC</b> to pause and save / load; progress auto-saves locally (and on exit).<br>' +
+               '🌍 Procedurally generated infinite terrain — build your own world!',
+      mc_new: 'New Game',
+      mc_continue: 'Continue (Load Save)',
+      mc_paused: 'Paused',
+      mc_resume_tip: 'Click anywhere to resume',
+      mc_save: 'Save',
+      mc_load: 'Load',
+      mc_export: 'Export Save',
+      mc_import: 'Import Save',
+      mc_cur_block: 'Current Block',
+      mc_saved: 'Saved',
+      mc_save_fail: 'Save failed: ',
+      mc_no_save: 'No local save found',
+      mc_loaded: 'Loaded from local save',
+      mc_load_fail: 'Load failed: ',
+      mc_exported: 'Save exported to file',
+      mc_export_fail: 'Export failed: ',
+      mc_imported: 'Save imported',
+      mc_import_fail: 'Import failed: '
+    }
+  },
+  onLang: function(){
+    buildHotbar();          // 刷新热键栏方块名（zh/en）
+    if(playing) updateHUD();
+  }
+});
+function mcSetTitle(l){ document.title = (l==='zh' ? '方块世界 · 沙盒小游戏' : 'Block World · Sandbox Game'); }
+mcSetTitle(i18n.lang);
+i18n.on(mcSetTitle);
 
 // ===================== 引导 =====================
 initGL();

@@ -10,17 +10,17 @@ const G0 = 9.81;
 //==================================================================
 //  天体系统（多体，层级轨道；距离为可玩压缩尺度）
 //==================================================================
-const SUN = { name:'太阳', R:600000, mu:1.2e14, color:'#ffcf6b', color2:'#ff8a1f',
+const SUN = { name:'SUN', nameZh:'太阳', nameEn:'Sun', R:600000, mu:1.2e14, color:'#ffcf6b', color2:'#ff8a1f',
               atmo:0, parent:null, a:0, phase:0 };
-const TERRA = { name:'泰拉(母星)', R:200000, mu:G0*200000*200000, color:'#3a7bd5', color2:'#1c4a8a',
+const TERRA = { name:'TERRA', nameZh:'泰拉(母星)', nameEn:'Terra (Home)', R:200000, mu:G0*200000*200000, color:'#3a7bd5', color2:'#1c4a8a',
               atmo:14000, parent:SUN, a:8.0e6, phase:0 };
-const LUNA = { name:'月球', R:50000, mu:1.62*50000*50000, color:'#b9b4a8', color2:'#6e6a60',
+const LUNA = { name:'LUNA', nameZh:'月球', nameEn:'Luna', R:50000, mu:1.62*50000*50000, color:'#b9b4a8', color2:'#6e6a60',
               atmo:0, parent:TERRA, a:600000, phase:1.7 };
-const VESTA = { name:'维斯塔', R:120000, mu:3.71*120000*120000, color:'#c0623a', color2:'#7a3a20',
+const VESTA = { name:'VESTA', nameZh:'维斯塔', nameEn:'Vesta', R:120000, mu:3.71*120000*120000, color:'#c0623a', color2:'#7a3a20',
               atmo:0, parent:SUN, a:14.0e6, phase:3.4 };
-const JOVE = { name:'朱庇特', R:500000, mu:24.79*500000*500000, color:'#caa46b', color2:'#8a6a3a',
+const JOVE = { name:'JOVE', nameZh:'朱庇特', nameEn:'Jove', R:500000, mu:24.79*500000*500000, color:'#caa46b', color2:'#8a6a3a',
               atmo:800000, parent:SUN, a:26.0e6, phase:5.1 };
-const IO = { name:'伊奥', R:80000, mu:1.8*80000*80000, color:'#d9c24a', color2:'#9a8030',
+const IO = { name:'IO', nameZh:'伊奥', nameEn:'Io', R:80000, mu:1.8*80000*80000, color:'#d9c24a', color2:'#9a8030',
               atmo:0, parent:JOVE, a:1.2e6, phase:0.6 };
 const BODIES = [SUN, TERRA, LUNA, VESTA, JOVE, IO];
 const LANDABLE = [TERRA, LUNA, VESTA, JOVE, IO]; // 可从表面起飞
@@ -54,34 +54,34 @@ function updateBodies(t){
   STATION.vx = ts.vx + (-Math.sin(ang))*v;
   STATION.vy = ts.vy + ( Math.cos(ang))*v;
 }
-const STATION = { name:'空间站', a:340000, phase:2.2, x:0, y:0, vx:0, vy:0, R:40 };
+const STATION = { name:'STATION', nameZh:'空间站', nameEn:'Space Station', a:340000, phase:2.2, x:0, y:0, vx:0, vy:0, R:40 };
 
 //==================================================================
 //  零件定义（尺寸单位：米）
 //==================================================================
 const PARTS = {
-  pod:    { name:'指令舱', w:10, h:12, mass:800, color:'#e74c3c', role:'pod', elec:60 },
-  probe:  { name:'探测核心', w:8, h:8, mass:300, color:'#9b59b6', role:'pod', elec:40 },
-  tankS:  { name:'小燃料罐', w:9, h:16, mass:200, fuel:700, color:'#f1c40f', role:'tank' },
-  tankL:  { name:'大燃料罐', w:11, h:28, mass:400, fuel:2000, color:'#f39c12', role:'tank' },
-  engS:   { name:'小引擎', w:12, h:10, mass:300, thrust:90000, isp:250, color:'#95a5a6', role:'engine' },
-  engL:   { name:'大引擎', w:15, h:14, mass:600, thrust:220000, isp:300, color:'#7f8c8d', role:'engine' },
-  sasM:   { name:'姿态控制', w:8, h:8, mass:120, color:'#3498db', role:'sas', elecUse:2 },
-  rcs:    { name:'RCS推进器', w:9, h:8, mass:150, color:'#1abc9c', role:'rcs', rcsFuel:220, rcsThrust:7000, elecUse:1 },
-  decoupler:{ name:'分离器', w:11, h:5, mass:60, color:'#e67e22', role:'decoupler' },
-  dock:   { name:'对接端口', w:9, h:6, mass:120, color:'#16a085', role:'dock' },
-  leg:    { name:'着陆架', w:14, h:9, mass:200, color:'#bdc3c7', role:'leg' },
-  wheel:  { name:'轮子', w:14, h:9, mass:250, color:'#34495e', role:'wheel' },
-  solar:  { name:'太阳能板', w:18, h:4, mass:120, color:'#2980b9', role:'solar', elecGen:10, elec:20 },
-  battery:{ name:'电池', w:9, h:9, mass:150, color:'#27ae60', role:'battery', elec:200 },
-  fairing:{ name:'整流罩', w:13, h:18, mass:150, color:'#ecf0f1', role:'fairing' },
+  pod:    { name:'指令舱', nameEn:'Command Pod', w:10, h:12, mass:800, color:'#e74c3c', role:'pod', elec:60 },
+  probe:  { name:'探测核心', nameEn:'Probe Core', w:8, h:8, mass:300, color:'#9b59b6', role:'pod', elec:40 },
+  tankS:  { name:'小燃料罐', nameEn:'Small Tank', w:9, h:16, mass:200, fuel:700, color:'#f1c40f', role:'tank' },
+  tankL:  { name:'大燃料罐', nameEn:'Large Tank', w:11, h:28, mass:400, fuel:2000, color:'#f39c12', role:'tank' },
+  engS:   { name:'小引擎', nameEn:'Small Engine', w:12, h:10, mass:300, thrust:90000, isp:250, color:'#95a5a6', role:'engine' },
+  engL:   { name:'大引擎', nameEn:'Large Engine', w:15, h:14, mass:600, thrust:220000, isp:300, color:'#7f8c8d', role:'engine' },
+  sasM:   { name:'姿态控制', nameEn:'SAS Module', w:8, h:8, mass:120, color:'#3498db', role:'sas', elecUse:2 },
+  rcs:    { name:'RCS推进器', nameEn:'RCS Thruster', w:9, h:8, mass:150, color:'#1abc9c', role:'rcs', rcsFuel:220, rcsThrust:7000, elecUse:1 },
+  decoupler:{ name:'分离器', nameEn:'Decoupler', w:11, h:5, mass:60, color:'#e67e22', role:'decoupler' },
+  dock:   { name:'对接端口', nameEn:'Docking Port', w:9, h:6, mass:120, color:'#16a085', role:'dock' },
+  leg:    { name:'着陆架', nameEn:'Landing Leg', w:14, h:9, mass:200, color:'#bdc3c7', role:'leg' },
+  wheel:  { name:'轮子', nameEn:'Wheel', w:14, h:9, mass:250, color:'#34495e', role:'wheel' },
+  solar:  { name:'太阳能板', nameEn:'Solar Panel', w:18, h:4, mass:120, color:'#2980b9', role:'solar', elecGen:10, elec:20 },
+  battery:{ name:'电池', nameEn:'Battery', w:9, h:9, mass:150, color:'#27ae60', role:'battery', elec:200 },
+  fairing:{ name:'整流罩', nameEn:'Fairing', w:13, h:18, mass:150, color:'#ecf0f1', role:'fairing' },
 };
 // 建造面板分组
 const PALETTE_GROUPS = [
-  { title:'核心', items:['pod','probe','tankS','tankL','engS','engL'] },
-  { title:'分级 / 对接', items:['decoupler','dock','fairing'] },
-  { title:'姿态 / 电源', items:['sasM','rcs','solar','battery'] },
-  { title:'着陆 / 漫游', items:['leg','wheel'] },
+  { title:'核心', titleEn:'Core', items:['pod','probe','tankS','tankL','engS','engL'] },
+  { title:'分级 / 对接', titleEn:'Staging / Dock', items:['decoupler','dock','fairing'] },
+  { title:'姿态 / 电源', titleEn:'Attitude / Power', items:['sasM','rcs','solar','battery'] },
+  { title:'着陆 / 漫游', titleEn:'Landing / Rover', items:['leg','wheel'] },
 ];
 
 //==================================================================
@@ -309,31 +309,39 @@ function roundRect(c,x,y,w,h,r){
 }
 function updateBuildStats(s){
   const el = document.getElementById('buildStats');
+  G.lastBuildStats = s;
   const twrCls = s.twr>=1.0 ? 'ok' : 'warn';
-  const dvShow = s.dvStaged>0 ? `${fmt(s.dv)} (分级后 ≈ ${fmt(s.dvStaged)})` : fmt(s.dv);
+  const dvShow = s.dvStaged>0 ? `${fmt(s.dv)} (${i18n.t('sfs_staged')} ${fmt(s.dvStaged)})` : fmt(s.dv);
+  const has = i18n.t('sfs_yes'), none = i18n.t('sfs_no');
   el.innerHTML =
-    `总质量：<b>${fmt(s.wet)} kg</b> （干 ${fmt(s.dry)} + 燃料 ${fmt(s.fuel)}）<br>`+
-    `总推力：<b>${fmt(s.thrust)} N</b><br>`+
-    `推重比(母星)：<span class="${twrCls}">${s.twr.toFixed(2)}</span> ${s.twr<1?'（<1，无法起飞!）':''}<br>`+
-    `比冲：<b>${s.ispAvg.toFixed(0)} s</b><br>`+
-    `Δv 总冲量：<b>${dvShow} m/s</b><br>`+
-    `理论燃烧：<b>${s.burn.toFixed(1)} s</b><br>`+
-    `分级数：<b>${s.stages}</b> · RCS燃料：<b>${fmt(s.rcsFuel)}</b><br>`+
-    `电量容量：<b>${fmt(s.elecCap)}</b> · 发电：<b>${s.elecGen}/s</b><br>`+
-    `着陆架：${s.hasLeg?'有':'无'} · 轮子：${s.hasWheel?'有':'无'} · 对接端口：${s.hasDock?'有':'无'}<br>`+
-    `火箭高度：<b>${s.height.toFixed(0)} m</b>`;
+    `${i18n.t('sfs_total_mass')}：<b>${fmt(s.wet)} kg</b> （${i18n.t('sfs_dry')} ${fmt(s.dry)} + ${i18n.t('sfs_fuel')} ${fmt(s.fuel)}）<br>`+
+    `${i18n.t('sfs_thrust')}：<b>${fmt(s.thrust)} N</b><br>`+
+    `${i18n.t('sfs_twr')}：<span class="${twrCls}">${s.twr.toFixed(2)}</span> ${s.twr<1?'（'+i18n.t('sfs_twr_low')+'）':''}<br>`+
+    `${i18n.t('sfs_isp')}：<b>${s.ispAvg.toFixed(0)} s</b><br>`+
+    `Δv ${i18n.t('sfs_dv')}：<b>${dvShow} m/s</b><br>`+
+    `${i18n.t('sfs_burn')}：<b>${s.burn.toFixed(1)} s</b><br>`+
+    `${i18n.t('sfs_stages')}：<b>${s.stages}</b> · RCS${i18n.t('sfs_fuel')}：<b>${fmt(s.rcsFuel)}</b><br>`+
+    `${i18n.t('sfs_elec_cap')}：<b>${fmt(s.elecCap)}</b> · ${i18n.t('sfs_elec_gen')}：<b>${s.elecGen}/s</b><br>`+
+    `${i18n.t('sfs_leg')}：${s.hasLeg?has:none} · ${i18n.t('sfs_wheel')}：${s.hasWheel?has:none} · ${i18n.t('sfs_dock_port')}：${s.hasDock?has:none}<br>`+
+    `${i18n.t('sfs_height')}：<b>${s.height.toFixed(0)} m</b>`;
 }
 function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
 
 // 发射天体选择
 const bodySel = document.getElementById('bodySel');
-LANDABLE.forEach(b=>{
-  const el=document.createElement('div');
-  el.className='bb'+(b.name===G.launchBody?' on':'');
-  el.textContent=b.name;
-  el.onclick=()=>{ G.launchBody=b.name; [...bodySel.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); };
-  bodySel.appendChild(el);
-});
+function bodyName(b){ return i18n.lang==='zh' ? (b.nameZh||b.name) : (b.nameEn||b.name); }
+function partName(p){ return i18n.lang==='zh' ? (p.name||p.nameEn) : (p.nameEn||p.name); }
+function buildBodySel(){
+  bodySel.innerHTML='';
+  LANDABLE.forEach(b=>{
+    const el=document.createElement('div');
+    el.className='bb'+(b.name===G.launchBody?' on':'');
+    el.textContent=bodyName(b);
+    el.onclick=()=>{ G.launchBody=b.name; [...bodySel.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); };
+    bodySel.appendChild(el);
+  });
+}
+buildBodySel();
 
 // 零件按钮
 const partList = document.getElementById('partList');
@@ -343,24 +351,28 @@ function addPart(key, index){
   G.flips.splice(index,0,{h:false,v:false});
   drawBuild();
 }
-PALETTE_GROUPS.forEach(grp=>{
-  const h=document.createElement('div'); h.className='grp'; h.textContent=grp.title; partList.appendChild(h);
-  grp.items.forEach(key=>{
-    const d=PARTS[key];
-    const b=document.createElement('div'); b.className='partBtn'; b.draggable=true;
-    let info=`质量 ${d.mass}`;
-    if(d.fuel) info+=` · 燃料 ${d.fuel}`;
-    if(d.thrust) info+=` · 推力 ${fmt(d.thrust)}N`;
-    if(d.rcsFuel) info+=` · RCS ${d.rcsFuel}`;
-    if(d.elec) info+=` · 电 ${d.elec}`;
-    if(d.elecGen) info+=` · +${d.elecGen}/s`;
-    b.innerHTML=`<span>${d.name}</span><small>${info}</small>`;
-    b.title='拖拽到火箭上添加（或点击加入顶部）';
-    b.ondragstart=(e)=>{ e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed='copy'; };
-    b.onclick=()=>{ addPart(key, -1); };
-    partList.appendChild(b);
+function buildPartList(){
+  partList.innerHTML='';
+  PALETTE_GROUPS.forEach(grp=>{
+    const h=document.createElement('div'); h.className='grp'; h.textContent = i18n.lang==='zh'?grp.title:grp.titleEn; partList.appendChild(h);
+    grp.items.forEach(key=>{
+      const d=PARTS[key];
+      const b=document.createElement('div'); b.className='partBtn'; b.draggable=true;
+      let info=`质量 ${d.mass}`;
+      if(d.fuel) info+=` · 燃料 ${d.fuel}`;
+      if(d.thrust) info+=` · 推力 ${fmt(d.thrust)}N`;
+      if(d.rcsFuel) info+=` · RCS ${d.rcsFuel}`;
+      if(d.elec) info+=` · 电 ${d.elec}`;
+      if(d.elecGen) info+=` · +${d.elecGen}/s`;
+      b.innerHTML=`<span>${partName(d)}</span><small>${info}</small>`;
+      b.title='拖拽到火箭上添加（或点击加入顶部）';
+      b.ondragstart=(e)=>{ e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed='copy'; };
+      b.onclick=()=>{ addPart(key, -1); };
+      partList.appendChild(b);
+    });
   });
-});
+}
+buildPartList();
 // 建造画布：拖放添加 + 点击选中
 buildCanvas.ondragover=(e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; buildCanvas.classList.add('drop'); };
 buildCanvas.ondragleave=()=>{ buildCanvas.classList.remove('drop'); };
@@ -755,7 +767,7 @@ function checkDock(){
   const up={x:Math.sin(sh.angle), y:-Math.cos(sh.angle)};
   const align=up.x*toSt.x+up.y*toSt.y;
   if(relsp<6 && align>0.6){
-    G.docked=true; G.dockMsg='已对接 '+st.name+' · 按 G 或 Space 脱离';
+    G.docked=true; G.dockMsg=i18n.t('sfs_docked')+' '+bodyName(st)+' · '+i18n.t('sfs_undock');
   }
 }
 function dockKeep(){
@@ -943,24 +955,24 @@ function updateHUD(){
   const elecPct=sh.elecMax>0? sh.elec/sh.elecMax*100:0;
   const el=document.getElementById('telemetry');
   const altCls=alt>0?'good':'bad';
-  const stTxt = G.docked? '<span class="v good">已对接</span>'
-    : sh.onGround? (G.roverDrive?'<span class="v">漫游车模式</span>':'<span class="v good">已着陆 · W点火 / G漫游车</span>')
-    : '<span class="v">飞行中</span>';
+  const stTxt = G.docked? '<span class="v good">'+i18n.t('sfs_docked')+'</span>'
+    : sh.onGround? (G.roverDrive?'<span class="v">'+i18n.t('sfs_rover_mode')+'</span>':'<span class="v good">'+i18n.t('sfs_landed')+'</span>')
+    : '<span class="v">'+i18n.t('sfs_flying')+'</span>';
   el.innerHTML =
-    `<div><span class="k">天体</span> <span class="v">${dom.name}</span></div>`+
-    `<div><span class="k">高度</span> <span class="v ${altCls}">${(alt/1000).toFixed(1)} km</span></div>`+
-    `<div><span class="k">速度(相对)</span> <span class="v">${speed.toFixed(1)} m/s</span></div>`+
-    `<div><span class="k">远地点 Ap</span> <span class="v">${apTxt}</span></div>`+
-    `<div><span class="k">近地点 Pe</span> <span class="v">${peTxt}</span></div>`+
-    `<div><span class="k">燃料</span> <span class="v">${fuelPct.toFixed(0)}%</span></div>`+
-    `<div><span class="k">RCS</span> <span class="v">${rcsPct.toFixed(0)}%</span></div>`+
-    `<div><span class="k">电量</span> <span class="v ${elecPct<10?'bad':'good'}">${elecPct.toFixed(0)}%</span></div>`+
-    `<div><span class="k">姿态</span> <span class="v">${(sh.angle*180/Math.PI).toFixed(0)}°</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_body')}</span> <span class="v">${bodyName(dom)}</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_alt')}</span> <span class="v ${altCls}">${(alt/1000).toFixed(1)} km</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_speed')}</span> <span class="v">${speed.toFixed(1)} m/s</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_ap')}</span> <span class="v">${apTxt}</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_pe')}</span> <span class="v">${peTxt}</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_fuel')}</span> <span class="v">${fuelPct.toFixed(0)}%</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_rcs')}</span> <span class="v">${rcsPct.toFixed(0)}%</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_elec')}</span> <span class="v ${elecPct<10?'bad':'good'}">${elecPct.toFixed(0)}%</span></div>`+
+    `<div><span class="k">${i18n.t('sfs_attitude')}</span> <span class="v">${(sh.angle*180/Math.PI).toFixed(0)}°</span></div>`+
     `<div>${stTxt}</div>`+
-    `<div><span class="k">时间</span> <span class="v">${formatTime(G.time)}</span></div>`;
+    `<div><span class="k">${i18n.t('sfs_time')}</span> <span class="v">${formatTime(G.time)}</span></div>`;
 
   document.getElementById('throttleBar').style.height=(G.throttle*100)+'%';
-  document.getElementById('throttleTxt').textContent='油门 '+Math.round(G.throttle*100)+'%';
+  document.getElementById('throttleTxt').textContent=i18n.t('sfs_throttle')+' '+Math.round(G.throttle*100)+'%';
   document.getElementById('sasBtn').classList.toggle('on', G.sas);
   document.getElementById('sas2').classList.toggle('on', G.sas);
   document.getElementById('mapBtn').classList.toggle('on', G.mapMode);
@@ -968,7 +980,7 @@ function updateHUD(){
   document.getElementById('roverBtn').classList.toggle('on', G.roverDrive);
   document.getElementById('warpBtn').textContent='×'+G.warp;
   const dm=document.getElementById('dockMsg');
-  dm.textContent = G.dockMsg || (G.docked?'已对接 '+G.station.name:'');
+  dm.textContent = G.dockMsg || (G.docked? i18n.t('sfs_docked')+' '+bodyName(G.station):'');
 }
 function formatTime(t){
   const h=Math.floor(t/3600), m=Math.floor((t%3600)/60), s=Math.floor(t%60);
@@ -1059,9 +1071,9 @@ function resetToBuild(){ G.particles=[]; G.debris=[]; toBuild(); }
 function showEnd(win, body){
   const ov=document.getElementById('endOverlay');
   ov.className='overlay '+(win?'win':'lose');
-  document.getElementById('endTitle').textContent=win?'任务成功':'坠毁！';
-  if(win) document.getElementById('endMsg').textContent='你成功抵达 '+body.name+' 表面。';
-  else document.getElementById('endMsg').textContent='撞击速度过快或姿态错误，火箭在 '+(body?body.name:'星球')+' 表面解体。';
+  document.getElementById('endTitle').textContent=win?i18n.t('sfs_win'):i18n.t('sfs_crash');
+  if(win) document.getElementById('endMsg').textContent=i18n.t('sfs_win_msg').replace('{body}', bodyName(body));
+  else document.getElementById('endMsg').textContent=i18n.t('sfs_crash_msg').replace('{body}', bodyName(body||{name:'星球',nameZh:'星球',nameEn:'planet'}));
   document.getElementById('hud').classList.add('hidden');
   ov.classList.remove('hidden');
 }
@@ -1119,9 +1131,62 @@ showState();
 drawBuild();
 requestAnimationFrame(loop);
 
+//==================================================================
+//  国际化（双语：中文 / 英文）
+//==================================================================
+i18n.init({
+  dict: {
+    zh: {
+      sfs_menu_title:'航天模拟器', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · 建造 · 发射 · 入轨 · 登陆星球 · 对接 · 漫游车',
+      sfs_start_build:'开始建造火箭', sfs_launch_body:'发射天体', sfs_part_lib:'零件库',
+      sfs_remove:'删除零件', sfs_clear:'清空', sfs_flip_v:'↕ 上下翻转', sfs_flip_h:'↔ 左右翻转',
+      sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向',
+      sfs_launch:'🚀 发射', sfs_back_menu:'返回菜单',
+      sfs_map:'星图 (M)', sfs_sas:'SAS (Z)', sfs_stage:'分级 (Space)', sfs_rover:'漫游车 (G)', sfs_reset:'重置 (R)',
+      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置',
+      sfs_throttle:'油门', sfs_retry:'重新飞行', sfs_to_build:'回建造台',
+      sfs_body:'天体', sfs_alt:'高度', sfs_speed:'速度(相对)', sfs_ap:'远地点 Ap', sfs_pe:'近地点 Pe',
+      sfs_fuel:'燃料', sfs_rcs:'RCS', sfs_elec:'电量', sfs_attitude:'姿态', sfs_time:'时间',
+      sfs_docked:'已对接', sfs_rover_mode:'漫游车模式', sfs_landed:'已着陆 · W点火 / G漫游车', sfs_flying:'飞行中',
+      sfs_undock:'按 G 或 Space 脱离',
+      sfs_win:'任务成功', sfs_crash:'坠毁！',
+      sfs_win_msg:'你成功抵达 {body} 表面。', sfs_crash_msg:'撞击速度过快或姿态错误，火箭在 {body} 表面解体。',
+      sfs_total_mass:'总质量', sfs_dry:'干', sfs_thrust:'总推力', sfs_twr:'推重比(母星)', sfs_twr_low:'<1，无法起飞',
+      sfs_isp:'比冲', sfs_dv:'总冲量', sfs_staged:'分级后 ≈', sfs_burn:'理论燃烧', sfs_stages:'分级数',
+      sfs_elec_cap:'电量容量', sfs_elec_gen:'发电', sfs_leg:'着陆架', sfs_wheel:'轮子', sfs_dock_port:'对接端口',
+      sfs_yes:'有', sfs_no:'无', sfs_height:'火箭高度'
+    },
+    en: {
+      sfs_menu_title:'Space Flight Sim', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · Build · Launch · Orbit · Land · Dock · Rover',
+      sfs_start_build:'Build Rocket', sfs_launch_body:'Launch Body', sfs_part_lib:'Parts',
+      sfs_remove:'Remove', sfs_clear:'Clear', sfs_flip_v:'Flip ↕', sfs_flip_h:'Flip ↔',
+      sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · click a part to select · use flip buttons to orient',
+      sfs_launch:'🚀 Launch', sfs_back_menu:'Back to Menu',
+      sfs_map:'Map (M)', sfs_sas:'SAS (Z)', sfs_stage:'Stage (Space)', sfs_rover:'Rover (G)', sfs_reset:'Reset (R)',
+      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · R reset',
+      sfs_throttle:'Throttle', sfs_retry:'Retry', sfs_to_build:'To Build',
+      sfs_body:'Body', sfs_alt:'Altitude', sfs_speed:'Speed (rel)', sfs_ap:'Apoapsis', sfs_pe:'Periapsis',
+      sfs_fuel:'Fuel', sfs_rcs:'RCS', sfs_elec:'Power', sfs_attitude:'Attitude', sfs_time:'Time',
+      sfs_docked:'Docked', sfs_rover_mode:'Rover Mode', sfs_landed:'Landed · W thrust / G rover', sfs_flying:'In Flight',
+      sfs_undock:'Press G or Space to undock',
+      sfs_win:'Mission Success', sfs_crash:'Crashed!',
+      sfs_win_msg:'You have arrived at the surface of {body}.', sfs_crash_msg:'Impact too fast or wrong attitude; the rocket broke apart on {body}\'s surface.',
+      sfs_total_mass:'Total mass', sfs_dry:'dry', sfs_thrust:'Thrust', sfs_twr:'TWR (home)', sfs_twr_low:'<1, cannot lift off',
+      sfs_isp:'Isp', sfs_dv:'Δv', sfs_staged:'after staging ≈', sfs_burn:'Burn', sfs_stages:'Stages',
+      sfs_elec_cap:'Power cap', sfs_elec_gen:'Gen', sfs_leg:'Legs', sfs_wheel:'Wheels', sfs_dock_port:'Dock port',
+      sfs_yes:'yes', sfs_no:'no', sfs_height:'Height'
+    }
+  },
+  onLang: function(){
+    buildBodySel();
+    buildPartList();
+    if(G.lastBuildStats) updateBuildStats(G.lastBuildStats);
+  }
+});
+
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName};
 }
 
 })();
