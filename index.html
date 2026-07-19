@@ -14,7 +14,12 @@
     padding:7px 14px; border-radius:20px; font-size:13px; user-select:none; transition:.15s; }
   .lang-switch:hover { border-color:#7fffd4; transform:translateY(-1px); }
   h1 { font-size:40px; letter-spacing:4px; text-shadow:0 0 24px #4aa3ff; margin-bottom:6px; }
-  .sub { color:#8fb6ff; margin-bottom:36px; letter-spacing:1px; }
+  .sub { color:#8fb6ff; margin-bottom:24px; letter-spacing:1px; }
+  .tabs { display:flex; gap:12px; justify-content:center; margin-bottom:30px; }
+  .tab { cursor:pointer; padding:9px 22px; border-radius:24px; border:1px solid #25365c;
+    background:rgba(20,40,40,.4); color:#8fb6ff; font-size:14px; user-select:none; transition:.15s; }
+  .tab:hover { border-color:#5b8dff; color:#cfe0ff; }
+  .tab.active { background:#1d3a6b; color:#fff; border-color:#5b8dff; box-shadow:0 0 14px rgba(91,141,255,.45); }
   .grid { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; max-width:880px; }
   .card { width:240px; background:linear-gradient(160deg,#13203a,#0c1526);
     border:1px solid #25365c; border-radius:14px; padding:22px; text-decoration:none;
@@ -43,13 +48,19 @@
   <div class="lang-switch" id="langSwitch">🌐 EN</div>
   <h1 id="siteTitle">我的游戏世界</h1>
   <div class="sub" id="siteSub">GAME WORLD · 三个纯前端 HTML5 小游戏</div>
-  <div class="grid" id="grid"></div>
-  <div class="qr-box">
-    <div class="qr-code" id="qrCode"></div>
-    <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
-    <div class="qr-url" id="qrUrl"></div>
+    <div class="tabs">
+      <div class="tab active" id="tabHome" data-tab="home">🎮 游戏</div>
+      <div class="tab" id="tabComments" data-tab="comments">💬 留言板</div>
+    </div>
+  <div id="panelHome">
+    <div class="grid" id="grid"></div>
+    <div class="qr-box">
+      <div class="qr-code" id="qrCode"></div>
+      <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
+      <div class="qr-url" id="qrUrl"></div>
+    </div>
   </div>
-  <section class="comments">
+  <section class="comments" id="panelComments" style="display:none">
     <h2 class="comments-title" id="commentsTitle">留言板</h2>
     <script src="https://giscus.app/client.js"
       data-repo="realeasonliang/gameworld"
@@ -63,7 +74,6 @@
       data-input-position="bottom"
       data-theme="transparent_dark"
       data-lang="zh-CN"
-      data-loading="lazy"
       crossorigin="anonymous"
       async>
     </script>
@@ -79,7 +89,9 @@
       footer: 'Made by Eason Liang · 上海市 · 即将小学五年级',
       switchTo: 'EN',
       qrTip: '扫码访问我的网站',
-      commentsTitle: '留言板'
+      commentsTitle: '留言板',
+      tabHome: '🎮 游戏',
+      tabComments: '💬 留言板'
     },
     en: {
       title: 'My Game World',
@@ -87,7 +99,9 @@
       footer: 'Made by Eason Liang · Shanghai · Rising 5th grader',
       switchTo: '中文',
       qrTip: 'Scan to visit my site',
-      commentsTitle: 'Comments'
+      commentsTitle: 'Comments',
+      tabHome: '🎮 Games',
+      tabComments: '💬 Comments'
     }
   };
 
@@ -156,6 +170,8 @@
     document.getElementById('langSwitch').textContent = '🌐 ' + t.switchTo;
     document.getElementById('qrTip').textContent = t.qrTip;
     document.getElementById('commentsTitle').textContent = t.commentsTitle;
+    document.getElementById('tabHome').textContent = t.tabHome;
+    document.getElementById('tabComments').textContent = t.tabComments;
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
@@ -188,6 +204,18 @@
     setTimeout(syncGiscus, 300);
   });
   window.addEventListener('load', () => setTimeout(syncGiscus, 1500));
+
+  // ===== 顶部页签切换（游戏 / 留言板） =====
+  function showTab(tab) {
+    const isHome = (tab === 'home');
+    document.getElementById('panelHome').style.display = isHome ? '' : 'none';
+    document.getElementById('panelComments').style.display = isHome ? 'none' : '';
+    document.getElementById('tabHome').classList.toggle('active', isHome);
+    document.getElementById('tabComments').classList.toggle('active', !isHome);
+    if (!isHome) setTimeout(syncGiscus, 300);
+  }
+  document.getElementById('tabHome').addEventListener('click', () => showTab('home'));
+  document.getElementById('tabComments').addEventListener('click', () => showTab('comments'));
 
   render();
 </script>
