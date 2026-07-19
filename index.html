@@ -32,6 +32,9 @@
   .qr-code svg { display:block; width:176px; height:176px; }
   .qr-tip { font-size:14px; color:#8fb6ff; letter-spacing:1px; }
   .qr-url { font-size:12px; color:#5f7299; word-break:break-all; max-width:240px; text-align:center; }
+  .comments { margin-top:36px; width:100%; max-width:760px; background:linear-gradient(160deg,#13203a,#0c1526);
+    border:1px solid #25365c; border-radius:16px; padding:20px 22px; box-shadow:0 0 22px rgba(74,163,255,.12); }
+  .comments-title { font-size:22px; margin-bottom:14px; color:#e8eefc; text-align:center; letter-spacing:2px; }
   footer { margin-top:40px; font-size:12px; color:#5f7299; }
   </style>
   <script src="assets/qrcode.min.js"></script>
@@ -46,6 +49,25 @@
     <div class="qr-tip" id="qrTip">扫码访问我的网站</div>
     <div class="qr-url" id="qrUrl"></div>
   </div>
+  <section class="comments">
+    <h2 class="comments-title" id="commentsTitle">留言板</h2>
+    <script src="https://giscus.app/client.js"
+      data-repo="realeasonliang/gameworld"
+      data-repo-id="R_kgDOTXN0QQ"
+      data-category="General"
+      data-category-id="DIC_kwDOTXN0Qc4DBfmP"
+      data-mapping="pathname"
+      data-strict="0"
+      data-reactions-enabled="1"
+      data-emit-metadata="0"
+      data-input-position="bottom"
+      data-theme="transparent_dark"
+      data-lang="zh-CN"
+      data-loading="lazy"
+      crossorigin="anonymous"
+      async>
+    </script>
+  </section>
   <footer id="siteFooter">Made by Eason Liang · 上海市 · 即将小学五年级</footer>
 
 <script>
@@ -56,14 +78,16 @@
       sub: 'GAME WORLD · 三个纯前端 HTML5 小游戏',
       footer: 'Made by Eason Liang · 上海市 · 即将小学五年级',
       switchTo: 'EN',
-      qrTip: '扫码访问我的网站'
+      qrTip: '扫码访问我的网站',
+      commentsTitle: '留言板'
     },
     en: {
       title: 'My Game World',
       sub: 'GAME WORLD · Three pure-frontend HTML5 games',
       footer: 'Made by Eason Liang · Shanghai · Rising 5th grader',
       switchTo: '中文',
-      qrTip: 'Scan to visit my site'
+      qrTip: 'Scan to visit my site',
+      commentsTitle: 'Comments'
     }
   };
 
@@ -131,6 +155,7 @@
     document.getElementById('siteFooter').textContent = t.footer;
     document.getElementById('langSwitch').textContent = '🌐 ' + t.switchTo;
     document.getElementById('qrTip').textContent = t.qrTip;
+    document.getElementById('commentsTitle').textContent = t.commentsTitle;
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
@@ -147,11 +172,22 @@
     });
   }
 
+  function syncGiscus() {
+    const f = document.querySelector('iframe.giscus-frame');
+    if (f && f.contentWindow) {
+      f.contentWindow.postMessage(
+        { giscus: { setConfig: { theme: 'transparent_dark', lang: (lang === 'zh' ? 'zh-CN' : 'en') } } },
+        'https://giscus.app'
+      );
+    }
+  }
   document.getElementById('langSwitch').addEventListener('click', () => {
     lang = (lang === 'zh') ? 'en' : 'zh';
     localStorage.setItem('gw-lang', lang);
     render();
+    setTimeout(syncGiscus, 300);
   });
+  window.addEventListener('load', () => setTimeout(syncGiscus, 1500));
 
   render();
 </script>
