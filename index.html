@@ -8,7 +8,11 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { min-height:100vh; background:radial-gradient(circle at 50% 20%, #16264a 0%, #05060a 70%);
     font-family:'Microsoft YaHei','PingFang SC',sans-serif; color:#e8eefc;
-    display:flex; flex-direction:column; align-items:center; padding:48px 16px; }
+    display:flex; flex-direction:column; align-items:center; padding:48px 16px; position:relative; }
+  .lang-switch { position:absolute; top:18px; right:18px; cursor:pointer;
+    background:rgba(20,40,40,.5); color:#7fffd4; border:1px solid #2c4a4a;
+    padding:7px 14px; border-radius:20px; font-size:13px; user-select:none; transition:.15s; }
+  .lang-switch:hover { border-color:#7fffd4; transform:translateY(-1px); }
   h1 { font-size:40px; letter-spacing:4px; text-shadow:0 0 24px #4aa3ff; margin-bottom:6px; }
   .sub { color:#8fb6ff; margin-bottom:36px; letter-spacing:1px; }
   .grid { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; max-width:880px; }
@@ -25,28 +29,99 @@
 </style>
 </head>
 <body>
-  <h1>我的游戏世界</h1>
-  <div class="sub">GAME WORLD · 三个纯前端 HTML5 小游戏</div>
-  <div class="grid">
-    <a class="card" href="sfs.html">
-      <div class="ico">🚀</div>
-      <h2>航天模拟器</h2>
-      <p>建造火箭、发射、入轨、登陆星球、对接空间站、驾驶漫游车。多体太阳系 + 真实引力。</p>
-      <span class="tag">Space Flight Sim</span>
-    </a>
-    <a class="card" href="minecraft.html">
-      <div class="ico">⛏️</div>
-      <h2>方块世界</h2>
-      <p>第一人称 3D 沙盒，无限程序化地形、挖掘建造、牛羊漫游。</p>
-      <span class="tag">Sandbox</span>
-    </a>
-    <a class="card" href="pvz.html">
-      <div class="ico">🌻</div>
-      <h2>植物大战僵尸</h2>
-      <p>经典塔防，阳光经济、多种植物与僵尸，还带数学/英语答题挑战。</p>
-      <span class="tag">Tower Defense</span>
-    </a>
-  </div>
-  <footer>Made by Eason Liang · 上海市 · 即将小学五年级</footer>
+  <div class="lang-switch" id="langSwitch">🌐 EN</div>
+  <h1 id="siteTitle">我的游戏世界</h1>
+  <div class="sub" id="siteSub">GAME WORLD · 三个纯前端 HTML5 小游戏</div>
+  <div class="grid" id="grid"></div>
+  <footer id="siteFooter">Made by Eason Liang · 上海市 · 即将小学五年级</footer>
+
+<script>
+  // ===== 站点文案（中/英） =====
+  const I18N = {
+    zh: {
+      title: '我的游戏世界',
+      sub: 'GAME WORLD · 三个纯前端 HTML5 小游戏',
+      footer: 'Made by Eason Liang · 上海市 · 即将小学五年级',
+      switchTo: 'EN'
+    },
+    en: {
+      title: 'My Game World',
+      sub: 'GAME WORLD · Three pure-frontend HTML5 games',
+      footer: 'Made by Eason Liang · Shanghai · Rising 5th grader',
+      switchTo: '中文'
+    }
+  };
+
+  // ===== 游戏列表（加新游戏只需在此加一条） =====
+  const GAMES = [
+    {
+      folder: 'sfs', file: 'sfs.html', icon: '🚀',
+      title: { zh: '航天模拟器', en: 'Space Flight Sim' },
+      desc: {
+        zh: '建造火箭、发射、入轨、登陆星球、对接空间站、驾驶漫游车。多体太阳系 + 真实引力。',
+        en: 'Build rockets, launch, reach orbit, land on planets, dock with stations, drive rovers. Multi-body solar system + real gravity.'
+      },
+      tag: { zh: 'Space Flight Sim', en: 'Space Flight Sim' }
+    },
+    {
+      folder: 'minecraft', file: 'minecraft.html', icon: '⛏️',
+      title: { zh: '方块世界', en: 'Block World' },
+      desc: {
+        zh: '第一人称 3D 沙盒，无限程序化地形、挖掘建造、牛羊漫游。',
+        en: 'First-person 3D sandbox with infinite procedural terrain, dig & build, wandering animals.'
+      },
+      tag: { zh: 'Sandbox', en: 'Sandbox' }
+    },
+    {
+      folder: 'pvz', file: 'pvz.html', icon: '🌻',
+      title: { zh: '植物大战僵尸', en: 'Plants vs Zombies' },
+      desc: {
+        zh: '经典塔防，阳光经济、多种植物与僵尸，还带数学 / 英语答题挑战。',
+        en: 'Classic tower defense with sun economy, many plants & zombies, plus math / English quiz challenges.'
+      },
+      tag: { zh: 'Tower Defense', en: 'Tower Defense' }
+    }
+  ];
+
+  // ===== 语言检测 + 切换 =====
+  function detectLang() {
+    const saved = localStorage.getItem('gw-lang');
+    if (saved === 'zh' || saved === 'en') return saved;
+    const nav = (navigator.language || 'zh').toLowerCase();
+    return nav.startsWith('zh') ? 'zh' : 'en';
+  }
+  let lang = detectLang();
+
+  function render() {
+    const t = I18N[lang];
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.getElementById('siteTitle').textContent = t.title;
+    document.getElementById('siteSub').textContent = t.sub;
+    document.getElementById('siteFooter').textContent = t.footer;
+    document.getElementById('langSwitch').textContent = '🌐 ' + t.switchTo;
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    GAMES.forEach(g => {
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = 'games/' + g.folder + '/' + g.file;
+      a.innerHTML =
+        '<div class="ico">' + g.icon + '</div>' +
+        '<h2>' + g.title[lang] + '</h2>' +
+        '<p>' + g.desc[lang] + '</p>' +
+        '<span class="tag">' + g.tag[lang] + '</span>';
+      grid.appendChild(a);
+    });
+  }
+
+  document.getElementById('langSwitch').addEventListener('click', () => {
+    lang = (lang === 'zh') ? 'en' : 'zh';
+    localStorage.setItem('gw-lang', lang);
+    render();
+  });
+
+  render();
+</script>
 </body>
 </html>

@@ -19,9 +19,9 @@
 
 | 游戏 Game | 类型 Type | 简介 Description |
 |-----------|-----------|-----------------|
-| 🌍 `minecraft.html` | 3D 沙盒 Sandbox | 第一人称方块世界：自由挖掘与建造、无限程序化地形、会跑的牛羊。 |
-| 🧟 `pvz.html` | 2D 塔防 Tower Defense | 植物大战僵尸复刻，还藏着数学 / 英语答题小挑战。 |
-| 🚀 `sfs.html` | 航天模拟 Space Sim | 类 SFS 航天模拟器：建造火箭、多级分离、对接空间站、飞往不同星球。 |
+| 🌍 `games/minecraft/minecraft.html` | 3D 沙盒 Sandbox | 第一人称方块世界：自由挖掘与建造、无限程序化地形、会跑的牛羊。 |
+| 🧟 `games/pvz/pvz.html` | 2D 塔防 Tower Defense | 植物大战僵尸复刻，还藏着数学 / 英语答题小挑战。 |
+| 🚀 `games/sfs/sfs.html` | 航天模拟 Space Sim | 类 SFS 航天模拟器：建造火箭、多级分离、对接空间站、飞往不同星球。 |
 
 ---
 
@@ -40,7 +40,8 @@ git clone git@github.com:realeasonliang/gameworld.git
 ## 🛠️ 关于这个项目 · About This Project
 
 - 全部用原生 **HTML + JavaScript + Canvas / WebGL** 写成，**零依赖、零框架**。
-- 每个游戏都是**单文件**，方便分享、移植与二次创作。
+- 每个游戏独立放在自己的文件夹（`games/<游戏名>/`）里，方便维护与持续扩展。
+- 首页 `index.html` 是**双语**的：会根据浏览器语言自动显示中文 / 英文，右上角 🌐 可手动切换。
 - 由 **Eason Liang** 在课余时间独立开发，并持续更新中。
 
 ---

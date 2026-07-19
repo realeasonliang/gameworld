@@ -18,9 +18,9 @@ I love playing games — but even more, I love building my own. Everything in th
 
 | Game | Type | Description |
 |------|------|-------------|
-| 🌍 `minecraft.html` | 3D Sandbox | First-person block world: dig & build freely, infinite procedural terrain, wandering animals. |
-| 🧟 `pvz.html` | 2D Tower Defense | A Plants vs. Zombies clone with built-in math / English quiz challenges. |
-| 🚀 `sfs.html` | Space Sim | An SFS-style space flight simulator: build rockets, stage, dock with a station, travel between worlds. |
+| 🌍 `games/minecraft/minecraft.html` | 3D Sandbox | First-person block world: dig & build freely, infinite procedural terrain, wandering animals. |
+| 🧟 `games/pvz/pvz.html` | 2D Tower Defense | A Plants vs. Zombies clone with built-in math / English quiz challenges. |
+| 🚀 `games/sfs/sfs.html` | Space Sim | An SFS-style space flight simulator: build rockets, stage, dock with a station, travel between worlds. |
 
 ---
 
@@ -39,7 +39,8 @@ git clone git@github.com:realeasonliang/gameworld.git
 ## 🛠️ About This Project
 
 - Built with pure **HTML + JavaScript + Canvas / WebGL** — **zero dependencies, zero frameworks**.
-- Every game is a **single self-contained file**, easy to share and remix.
+- Each game lives in its own folder (`games/<name>/`), easy to maintain and extend.
+- The `index.html` landing page is **bilingual**: it shows Chinese / English based on your browser language, with a 🌐 toggle in the top-right corner.
 - Developed and maintained by **Eason Liang** in his free time.
 
 ---
