@@ -61,7 +61,7 @@ const STATION = { name:'STATION', nameZh:'空间站', nameEn:'Space Station', a:
 //==================================================================
 const PARTS = {
   pod:    { name:'指令舱', nameEn:'Command Pod', w:10, h:12, mass:800, color:'#e74c3c', role:'pod', elec:60 },
-  probe:  { name:'探测核心', nameEn:'Probe Core', w:8, h:8, mass:300, color:'#9b59b6', role:'pod', elec:40 },
+  probe:  { name:'探测核心', nameEn:'Probe Core', w:8, h:8, mass:300, color:'#9b59b6', role:'probe', elec:40 },
   tankS:  { name:'小燃料罐', nameEn:'Small Tank', w:9, h:16, mass:200, fuel:700, color:'#f1c40f', role:'tank' },
   tankL:  { name:'大燃料罐', nameEn:'Large Tank', w:11, h:28, mass:400, fuel:2000, color:'#f39c12', role:'tank' },
   engS:   { name:'小引擎', nameEn:'Small Engine', w:12, h:10, mass:300, thrust:90000, isp:250, color:'#95a5a6', role:'engine' },
@@ -104,6 +104,7 @@ const G = {
   sas:false,
   throttle:0,
   roverDrive:false,
+  cheats:{ fuel:false, god:false, thrust:false },
   mapMode:false,
   particles:[],
   stars:[],
@@ -264,40 +265,23 @@ function drawPartShape(c, cx, py, pw, ph, d, alpha, flip){
     const cy = py+ph/2;
     c.translate(cx, cy); c.scale(flip.h?-1:1, flip.v?-1:1); c.translate(-cx, -cy);
   }
-  c.fillStyle = d.color;
-  roundRect(c, cx-pw/2, py, pw, ph, 3); c.fill();
-  c.strokeStyle='rgba(0,0,0,.4)'; c.lineWidth=1; c.stroke();
-  if(d.role==='pod'){
-    c.fillStyle='rgba(255,255,255,.85)'; c.fillRect(cx-2, py+2, 4, 4);
-  } else if(d.role==='tank'){
-    c.fillStyle='rgba(0,0,0,.18)';
-    c.fillRect(cx-pw/2, py+ph*0.35, pw, 2);
-    c.fillRect(cx-pw/2, py+ph*0.6, pw, 2);
-  } else if(d.role==='engine'){
-    c.fillStyle='rgba(0,0,0,.55)';
-    c.beginPath(); c.moveTo(cx-pw/2, py+ph); c.lineTo(cx+pw/2, py+ph);
-    c.lineTo(cx+pw*0.3, py+ph+6); c.lineTo(cx-pw*0.3, py+ph+6); c.closePath(); c.fill();
-  } else if(d.role==='sas'){
-    c.fillStyle='rgba(255,255,255,.6)'; c.fillRect(cx-pw*0.2, py+ph*0.2, pw*0.4, ph*0.6);
-  } else if(d.role==='rcs'){
-    c.fillStyle='rgba(255,255,255,.5)'; c.fillRect(cx-pw*0.5, py+ph*0.3, 3, ph*0.4);
-    c.fillRect(cx+pw*0.5-3, py+ph*0.3, 3, ph*0.4);
-  } else if(d.role==='leg'){
-    c.strokeStyle='rgba(255,255,255,.7)'; c.lineWidth=2;
-    c.beginPath(); c.moveTo(cx-pw*0.3, py+ph); c.lineTo(cx-pw*0.5, py+ph+4);
-    c.moveTo(cx+pw*0.3, py+ph); c.lineTo(cx+pw*0.5, py+ph+4); c.stroke();
-  } else if(d.role==='wheel'){
-    c.fillStyle='#111'; c.beginPath(); c.arc(cx-pw*0.3, py+ph, 3, 0, 7); c.fill();
-    c.beginPath(); c.arc(cx+pw*0.3, py+ph, 3, 0, 7); c.fill();
-  } else if(d.role==='dock'){
-    c.strokeStyle='#16a085'; c.lineWidth=2; c.strokeRect(cx-pw*0.4, py+ph*0.2, pw*0.8, ph*0.6);
-  } else if(d.role==='solar'){
-    c.fillStyle='rgba(120,200,255,.8)'; c.fillRect(cx-pw/2, py, pw, ph);
-  } else if(d.role==='decoupler'){
-    c.fillStyle='#ff9a3c'; c.fillRect(cx-pw/2, py+ph/2-1, pw, 2);
-  } else if(d.role==='fairing'){
-    c.fillStyle='rgba(255,255,255,.5)'; c.beginPath();
-    c.moveTo(cx-pw/2,py); c.quadraticCurveTo(cx,py-ph*0.6,cx+pw/2,py); c.fill();
+  c.translate(cx-pw/2, py);   // 之后在局部坐标绘制：x∈[0,pw], y∈[0,ph]
+  const w=pw, h=ph;
+  const lw=Math.max(0.5, Math.min(1.4, pw*0.05));
+  switch(d.role){
+    case 'pod':       drawPod(c,w,h,d.color,lw);       break;
+    case 'probe':     drawProbe(c,w,h,d.color,lw);     break;
+    case 'engine':    drawEngine(c,w,h,d.color,lw);    break;
+    case 'sas':       drawSAS(c,w,h,d.color,lw);       break;
+    case 'rcs':       drawRCS(c,w,h,d.color,lw);       break;
+    case 'decoupler': drawDecoupler(c,w,h,d.color,lw); break;
+    case 'dock':      drawDock(c,w,h,d.color,lw);      break;
+    case 'leg':       drawLeg(c,w,h,d.color,lw);       break;
+    case 'wheel':     drawWheel(c,w,h,d.color,lw);     break;
+    case 'solar':     drawSolar(c,w,h,d.color,lw);     break;
+    case 'battery':   drawBattery(c,w,h,d.color,lw);   break;
+    case 'fairing':   drawFairing(c,w,h,d.color,lw);   break;
+    default:          drawTank(c,w,h,d.color,lw);      break;  // tank
   }
   c.restore();
 }
@@ -306,6 +290,247 @@ function roundRect(c,x,y,w,h,r){
   c.beginPath();
   c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
   c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+
+//==================================================================
+//  零件精绘辅助与绘制器（局部坐标：x∈[0,w], y∈[0,h]，y 向下为火箭下方）
+//==================================================================
+function hexShade(hex, amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  if(amt>=0){ r+=(255-r)*amt; g+=(255-g)*amt; b+=(255-b)*amt; }
+  else { r*=1+amt; g*=1+amt; b*=1+amt; }
+  return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')';
+}
+// 圆柱体横向金属渐变（左暗 → 中亮 → 右暗）
+function cylGrad(c,x,w,col){
+  const g=c.createLinearGradient(x,0,x+w,0);
+  g.addColorStop(0,   hexShade(col,-0.55));
+  g.addColorStop(0.20,hexShade(col,-0.12));
+  g.addColorStop(0.42,hexShade(col, 0.55));
+  g.addColorStop(0.64,hexShade(col, 0.02));
+  g.addColorStop(1,   hexShade(col,-0.60));
+  return g;
+}
+function outline(c,lw){ c.strokeStyle='rgba(10,16,28,.55)'; c.lineWidth=lw; c.stroke(); }
+
+// 指令舱：胶囊造型 + 舷窗 + 隔热底
+function drawPod(c,w,h,col,lw){
+  const g=c.createLinearGradient(0,0,w,0);
+  g.addColorStop(0,hexShade(col,-0.5)); g.addColorStop(0.34,hexShade(col,0.42));
+  g.addColorStop(0.55,hexShade(col,0.08)); g.addColorStop(1,hexShade(col,-0.52));
+  const by=h*0.30;
+  c.fillStyle=g; c.beginPath();
+  c.moveTo(w*0.26, h*0.02);
+  c.quadraticCurveTo(w*0.5, -h*0.07, w*0.74, h*0.02);
+  c.lineTo(w*0.86, by);
+  c.quadraticCurveTo(w, by+h*0.16, w, h*0.72);
+  c.lineTo(w, h*0.9);
+  c.quadraticCurveTo(w, h, w*0.93, h);
+  c.lineTo(w*0.07, h);
+  c.quadraticCurveTo(0, h, 0, h*0.9);
+  c.lineTo(0, h*0.72);
+  c.quadraticCurveTo(0, by+h*0.16, w*0.14, by);
+  c.closePath(); c.fill(); outline(c,lw);
+  // 舷窗
+  const wr=Math.min(w,h)*0.15, wx=w/2, wy=h*0.42;
+  const wg=c.createRadialGradient(wx-wr*0.35,wy-wr*0.35,wr*0.1,wx,wy,wr);
+  wg.addColorStop(0,'#cfeaff'); wg.addColorStop(0.55,'#3a7bd5'); wg.addColorStop(1,'#12365f');
+  c.fillStyle=wg; c.beginPath(); c.arc(wx,wy,wr,0,Math.PI*2); c.fill();
+  c.strokeStyle='rgba(255,255,255,.7)'; c.lineWidth=lw; c.stroke();
+  // 侧舷条纹
+  c.fillStyle='rgba(255,255,255,.30)';
+  c.fillRect(w*0.06,h*0.60,w*0.09,h*0.13); c.fillRect(w*0.85,h*0.60,w*0.09,h*0.13);
+  // 底部隔热层
+  c.fillStyle='rgba(52,38,30,.9)';
+  roundRect(c,w*0.08,h*0.88,w*0.84,h*0.12,1.5); c.fill();
+}
+// 探测核心：八边金箔体 + 天线
+function drawProbe(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,col);
+  c.beginPath();
+  c.moveTo(w*0.5,0); c.lineTo(w*0.86,h*0.22); c.lineTo(w*0.86,h*0.78);
+  c.lineTo(w*0.5,h); c.lineTo(w*0.14,h*0.78); c.lineTo(w*0.14,h*0.22);
+  c.closePath(); c.fill(); outline(c,lw);
+  // 天线
+  c.strokeStyle='#cfd6df'; c.lineWidth=Math.max(1,w*0.05);
+  c.beginPath(); c.moveTo(w*0.5,0); c.lineTo(w*0.5,-h*0.16); c.stroke();
+  c.fillStyle='#e8b64c'; c.beginPath(); c.arc(w*0.5,-h*0.18,Math.max(1,w*0.06),0,Math.PI*2); c.fill();
+  // 传感器窗
+  const r=Math.min(w,h)*0.13;
+  const wg=c.createRadialGradient(w/2-r*0.3,h*0.52-r*0.3,r*0.1,w/2,h*0.52,r);
+  wg.addColorStop(0,'#dff3ff'); wg.addColorStop(1,'#2c5f9e');
+  c.fillStyle=wg; c.beginPath(); c.arc(w/2,h*0.52,r,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(255,255,255,.25)'; c.fillRect(w*0.14,h*0.80,w*0.72,h*0.06);
+}
+// 燃料罐：白色圆柱 + 彩色环带 + 焊缝 + 高光
+function drawTank(c,w,h,col,lw){
+  const g=c.createLinearGradient(0,0,w,0);
+  g.addColorStop(0,'#7f8898'); g.addColorStop(0.18,'#c9d1dc'); g.addColorStop(0.42,'#ffffff');
+  g.addColorStop(0.64,'#c4ccd7'); g.addColorStop(1,'#737c8d');
+  c.fillStyle=g; roundRect(c,0,0,w,h,Math.min(3,w*0.14)); c.fill(); outline(c,lw);
+  // 端盖
+  c.fillStyle='rgba(38,48,68,.55)';
+  c.fillRect(0,0,w,Math.max(1,h*0.045)); c.fillRect(0,h-Math.max(1,h*0.045),w,Math.max(1,h*0.045));
+  // 彩色环带（零件色）
+  const sg=c.createLinearGradient(0,0,w,0);
+  sg.addColorStop(0,hexShade(col,-0.35)); sg.addColorStop(0.42,hexShade(col,0.45)); sg.addColorStop(1,hexShade(col,-0.4));
+  c.fillStyle=sg;
+  c.fillRect(0,h*0.10,w,h*0.10); c.fillRect(0,h*0.80,w,h*0.09);
+  // 焊缝
+  c.fillStyle='rgba(20,28,44,.25)';
+  c.fillRect(0,h*0.46,w,Math.max(1,h*0.02));
+  // 纵向高光
+  c.fillStyle='rgba(255,255,255,.45)';
+  c.fillRect(w*0.28,h*0.06,Math.max(1,w*0.06),h*0.88);
+}
+// 引擎：安装座 + 万向节 + 钟形喷管 + 喷口辉光
+function drawEngine(c,w,h,col,lw){
+  const mg=c.createLinearGradient(0,0,w,0);
+  mg.addColorStop(0,'#454f5c'); mg.addColorStop(0.42,'#b0bac7'); mg.addColorStop(1,'#3a434f');
+  c.fillStyle=mg; roundRect(c,w*0.17,0,w*0.66,h*0.28,1.5); c.fill(); outline(c,lw);
+  c.fillStyle=hexShade(col,0.15); c.fillRect(w*0.17,h*0.07,w*0.66,h*0.05);
+  c.fillStyle='#262e3a'; c.fillRect(w*0.28,h*0.28,w*0.44,h*0.08);
+  // 钟形喷管
+  const bw=w*0.42;
+  const bg=c.createLinearGradient(0,0,w,0);
+  bg.addColorStop(0,'#1e2228'); bg.addColorStop(0.32,'#66727f'); bg.addColorStop(0.5,'#9aa8b7');
+  bg.addColorStop(0.68,'#4d5867'); bg.addColorStop(1,'#171b20');
+  c.fillStyle=bg; c.beginPath();
+  c.moveTo(w/2-bw/2, h*0.36);
+  c.quadraticCurveTo(w/2-bw*0.36, h*0.62, 0, h);
+  c.lineTo(w, h);
+  c.quadraticCurveTo(w/2+bw*0.36, h*0.62, w/2+bw/2, h*0.36);
+  c.closePath(); c.fill(); outline(c,lw);
+  // 喷口内辉光
+  const ig=c.createLinearGradient(0,h*0.72,0,h);
+  ig.addColorStop(0,'rgba(255,110,40,0)'); ig.addColorStop(1,'rgba(255,140,60,.5)');
+  c.fillStyle=ig; c.beginPath();
+  c.moveTo(w/2-w*0.30,h*0.72); c.lineTo(w/2-w*0.47,h); c.lineTo(w/2+w*0.47,h); c.lineTo(w/2+w*0.30,h*0.72);
+  c.closePath(); c.fill();
+}
+// 姿态控制：金属块 + 蓝色灯带 + 陀螺盘
+function drawSAS(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,'#8d99a8');
+  roundRect(c,0,0,w,h,2); c.fill(); outline(c,lw);
+  c.fillStyle=hexShade(col,0.05);
+  c.fillRect(0,h*0.08,w,h*0.10); c.fillRect(0,h*0.82,w,h*0.10);
+  const r=h*0.30;
+  const cg=c.createRadialGradient(w/2-r*0.3,h/2-r*0.3,r*0.1,w/2,h/2,r);
+  cg.addColorStop(0,'#a8d8ff'); cg.addColorStop(0.6,'#2f6fd0'); cg.addColorStop(1,'#142f5c');
+  c.fillStyle=cg; c.beginPath(); c.arc(w/2,h/2,r,0,Math.PI*2); c.fill();
+  c.strokeStyle=hexShade(col,0.3); c.lineWidth=Math.max(1,lw); c.stroke();
+}
+// RCS：中央块 + 四向喷口 + 青色指示条
+function drawRCS(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,w*0.22,w*0.56,'#8d99a8');
+  roundRect(c,w*0.22,h*0.14,w*0.56,h*0.72,2); c.fill(); outline(c,lw);
+  c.fillStyle='#39424e';
+  c.beginPath(); c.moveTo(w*0.24,h*0.30); c.lineTo(0,h*0.22); c.lineTo(0,h*0.52); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(w*0.76,h*0.30); c.lineTo(w,h*0.22); c.lineTo(w,h*0.52); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(w*0.36,h*0.16); c.lineTo(w*0.42,0); c.lineTo(w*0.58,0); c.lineTo(w*0.64,h*0.16); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(w*0.36,h*0.84); c.lineTo(w*0.42,h); c.lineTo(w*0.58,h); c.lineTo(w*0.64,h*0.84); c.closePath(); c.fill();
+  c.fillStyle=hexShade(col,0.25); c.fillRect(w*0.22,h*0.44,w*0.56,h*0.14);
+}
+// 分离器：暗色环带 + 斜向警示纹 + 分离缝
+function drawDecoupler(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,'#525c6a');
+  roundRect(c,0,0,w,h,2); c.fill();
+  c.save(); roundRect(c,0,0,w,h,2); c.clip();
+  c.fillStyle=hexShade(col,-0.05);
+  const step=Math.max(3,h*1.1);
+  for(let x=-h; x<w+h; x+=step){
+    c.beginPath(); c.moveTo(x,h); c.lineTo(x+step*0.5,h); c.lineTo(x+step*0.5+h,0); c.lineTo(x+h,0); c.closePath(); c.fill();
+  }
+  c.restore();
+  outline(c,lw);
+  c.fillStyle='rgba(255,220,130,.95)';
+  c.fillRect(0,h/2-Math.max(0.6,h*0.07),w,Math.max(1.2,h*0.14));
+}
+// 对接端口：金属盘 + 导向环 + 中心孔
+function drawDock(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,'#9aa5b4');
+  roundRect(c,w*0.05,h*0.10,w*0.90,h*0.80,1.5); c.fill(); outline(c,lw);
+  c.strokeStyle=hexShade(col,0.15); c.lineWidth=Math.max(1,h*0.16);
+  c.beginPath(); c.arc(w/2,h*0.5,w*0.30,0,Math.PI*2); c.stroke();
+  c.fillStyle='#161d28'; c.beginPath(); c.arc(w/2,h*0.5,w*0.15,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(255,255,255,.35)'; c.fillRect(w*0.05,h*0.13,w*0.9,Math.max(0.6,h*0.06));
+}
+// 着陆架：安装座 + 双斜撑 + 液压杆 + 脚垫
+function drawLeg(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,w*0.36,w*0.28,'#8d99a8');
+  roundRect(c,w*0.36,0,w*0.28,h*0.30,1.5); c.fill(); outline(c,lw);
+  c.lineCap='round';
+  c.strokeStyle='#cfd6df'; c.lineWidth=Math.max(1.4,w*0.09);
+  c.beginPath(); c.moveTo(w*0.5,h*0.22); c.lineTo(w*0.14,h*0.74); c.stroke();
+  c.beginPath(); c.moveTo(w*0.5,h*0.22); c.lineTo(w*0.86,h*0.74); c.stroke();
+  c.strokeStyle='#57606e'; c.lineWidth=Math.max(1,w*0.04);
+  c.beginPath(); c.moveTo(w*0.5,h*0.30); c.lineTo(w*0.16,h*0.72); c.stroke();
+  c.beginPath(); c.moveTo(w*0.5,h*0.30); c.lineTo(w*0.84,h*0.72); c.stroke();
+  c.fillStyle='#7d8694';
+  roundRect(c,0,h*0.76,w*0.26,h*0.16,1.5); c.fill();
+  roundRect(c,w*0.74,h*0.76,w*0.26,h*0.16,1.5); c.fill();
+}
+// 轮子：悬挂臂 + 双轮（轮胎/轮辋/辐条/轮毂）
+function drawWheel(c,w,h,col,lw){
+  c.strokeStyle='#8d99a8'; c.lineWidth=Math.max(1.4,w*0.07); c.lineCap='round';
+  c.beginPath(); c.moveTo(w*0.5,0); c.lineTo(w*0.24,h*0.5); c.stroke();
+  c.beginPath(); c.moveTo(w*0.5,0); c.lineTo(w*0.76,h*0.5); c.stroke();
+  const r=Math.min(w*0.20,h*0.34);
+  [[w*0.24,h*0.64],[w*0.76,h*0.64]].forEach(function(pt){
+    const x=pt[0], y=pt[1];
+    c.fillStyle='#14161b'; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    c.fillStyle='#aeb9c6'; c.beginPath(); c.arc(x,y,r*0.58,0,Math.PI*2); c.fill();
+    c.strokeStyle='#39424e'; c.lineWidth=Math.max(0.8,r*0.16);
+    for(let a=0;a<4;a++){ const an=a*Math.PI/4;
+      c.beginPath(); c.moveTo(x-Math.cos(an)*r*0.5,y-Math.sin(an)*r*0.5); c.lineTo(x+Math.cos(an)*r*0.5,y+Math.sin(an)*r*0.5); c.stroke(); }
+    c.fillStyle='#39424e'; c.beginPath(); c.arc(x,y,r*0.18,0,Math.PI*2); c.fill();
+  });
+}
+// 太阳能板：金色边框 + 蓝色电池片网格 + 高光
+function drawSolar(c,w,h,col,lw){
+  c.fillStyle='#a8842f'; roundRect(c,0,0,w,h,1.5); c.fill();
+  const inset=Math.max(1,h*0.18);
+  const cw=w-inset*2, chh=h-inset*2;
+  const cols=Math.max(3,Math.round(w/Math.max(6,h*1.6)));
+  const cellW=cw/cols;
+  for(let i=0;i<cols;i++){
+    for(let row=0;row<2;row++){
+      c.fillStyle=((i+row)%2===0)?'#2f6fd0':'#4a8ae8';
+      c.fillRect(inset+i*cellW+0.6, inset+row*chh/2+0.6, cellW-1.2, chh/2-1.2);
+    }
+  }
+  c.fillStyle='rgba(255,255,255,.28)'; c.fillRect(0,0,w,h*0.30);
+  outline(c,lw);
+}
+// 电池：绿色金属体 + 电极柱 + 闪电标
+function drawBattery(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,col);
+  roundRect(c,0,0,w,h,2); c.fill(); outline(c,lw);
+  c.fillStyle='#d7dde5';
+  roundRect(c,w*0.26,h*0.04,w*0.16,h*0.14,1); c.fill();
+  roundRect(c,w*0.58,h*0.04,w*0.16,h*0.14,1); c.fill();
+  c.fillStyle='rgba(255,255,255,.9)';
+  c.beginPath();
+  c.moveTo(w*0.47,h*0.28); c.lineTo(w*0.37,h*0.56); c.lineTo(w*0.46,h*0.56);
+  c.lineTo(w*0.40,h*0.80); c.lineTo(w*0.60,h*0.46); c.lineTo(w*0.50,h*0.46);
+  c.lineTo(w*0.57,h*0.28);
+  c.closePath(); c.fill();
+  c.fillStyle='#eaffea'; c.beginPath(); c.arc(w*0.14,h*0.5,Math.max(0.8,w*0.05),0,Math.PI*2); c.fill();
+}
+// 整流罩：尖锥 + 中缝 + 尖端色标
+function drawFairing(c,w,h,col,lw){
+  const g=c.createLinearGradient(0,0,w,0);
+  g.addColorStop(0,'#929cab'); g.addColorStop(0.42,'#ffffff'); g.addColorStop(1,'#7f8899');
+  c.fillStyle=g; c.beginPath();
+  c.moveTo(0,h*0.88);
+  c.quadraticCurveTo(w*0.02,h*0.24,w*0.5,0);
+  c.quadraticCurveTo(w*0.98,h*0.24,w,h*0.88);
+  c.quadraticCurveTo(w*0.5,h*1.0,0,h*0.88);
+  c.closePath(); c.fill(); outline(c,lw);
+  c.strokeStyle='rgba(20,28,44,.3)'; c.lineWidth=Math.max(0.7,lw*0.8);
+  c.beginPath(); c.moveTo(w*0.5,h*0.02); c.lineTo(w*0.5,h*0.88); c.stroke();
+  c.fillStyle='#e74c3c'; c.beginPath(); c.arc(w*0.5,h*0.05,Math.max(1,w*0.08),0,Math.PI*2); c.fill();
 }
 function updateBuildStats(s){
   const el = document.getElementById('buildStats');
@@ -364,7 +589,7 @@ function buildPartList(){
       if(d.rcsFuel) info+=` · RCS ${d.rcsFuel}`;
       if(d.elec) info+=` · 电 ${d.elec}`;
       if(d.elecGen) info+=` · +${d.elecGen}/s`;
-      b.innerHTML=`<span>${partName(d)}</span><small>${info}</small>`;
+      b.innerHTML=`<i class="pdot" style="background:${d.color}"></i><span>${partName(d)}</span><small>${info}</small>`;
       b.title='拖拽到火箭上添加（或点击加入顶部）';
       b.ondragstart=(e)=>{ e.dataTransfer.setData('text/plain', key); e.dataTransfer.effectAllowed='copy'; };
       b.onclick=()=>{ addPart(key, -1); };
@@ -487,7 +712,8 @@ function physicsStep(dt){
   if(G.docked) return; // 对接时由对接逻辑驱动
 
   // 着陆后点火起飞
-  if(sh.onGround && G.throttle>0 && sh.fuel>0 && sh.thrust>0 && !G.roverDrive){
+  const cheatFuel = G.cheats.fuel;
+  if(sh.onGround && G.throttle>0 && (cheatFuel || sh.fuel>0) && sh.thrust>0 && !G.roverDrive){
     sh.onGround=false; G.state='flight';
   }
 
@@ -495,7 +721,7 @@ function physicsStep(dt){
   const rotAuth = (sh.parts.includes('sasM')||sh.parts.includes('pod')||sh.parts.includes('probe')) ? 2.6 : 1.5;
   if(keys.left)  sh.angVel -= rotAuth*dt;
   if(keys.right) sh.angVel += rotAuth*dt;
-  if(G.sas && sh.elec>0){
+  if(G.sas && (cheatFuel || sh.elec>0)){
     sh.angVel *= Math.pow(0.02, dt);
     sh.angle  *= Math.pow(0.2, dt);
   } else if(!G.sas){
@@ -512,18 +738,20 @@ function physicsStep(dt){
 
   // 主引擎推力
   let thrusting=false;
-  const engineOn = (G.throttle>0 && sh.fuel>0 && sh.thrust>0 && !(sh.onGround&&G.roverDrive));
+  const engineOn = (G.throttle>0 && (cheatFuel || sh.fuel>0) && sh.thrust>0 && !(sh.onGround&&G.roverDrive));
   if(engineOn){
-    const F=G.throttle*sh.thrust;
+    const F=G.throttle*sh.thrust*(G.cheats.thrust?5:1);
     ax += F*fdir.x/curMass; ay += F*fdir.y/curMass;
-    const burnRate = sh.thrust/(sh.ispAvg*G0);
-    sh.fuel=Math.max(0, sh.fuel - burnRate*G.throttle*dt);
+    if(!cheatFuel){
+      const burnRate = sh.thrust/(sh.ispAvg*G0);
+      sh.fuel=Math.max(0, sh.fuel - burnRate*G.throttle*dt);
+    }
     thrusting=true;
     spawnExhaust(fdir, dt, G.throttle);
   }
 
   // RCS 平移
-  if(sh.hasRcs && sh.rcsFuel>0 && sh.elec>0 && (keys.tup||keys.tdown||keys.tleft||keys.tright)){
+  if(sh.hasRcs && (cheatFuel || (sh.rcsFuel>0 && sh.elec>0)) && (keys.tup||keys.tdown||keys.tleft||keys.tright)){
     const F = sh.rcsThrust;
     let dx=0, dy=0;
     if(keys.tup){ dx+=fdir.x; dy+=fdir.y; }
@@ -532,8 +760,10 @@ function physicsStep(dt){
     if(keys.tleft){ dx-=right.x; dy-=right.y; }
     const m=Math.hypot(dx,dy)||1;
     ax += F*(dx/m)/curMass; ay += F*(dy/m)/curMass;
-    sh.rcsFuel=Math.max(0, sh.rcsFuel - 6*dt);
-    sh.elec=Math.max(0, sh.elec - sh.elecUse*dt);
+    if(!cheatFuel){
+      sh.rcsFuel=Math.max(0, sh.rcsFuel - 6*dt);
+      sh.elec=Math.max(0, sh.elec - sh.elecUse*dt);
+    }
     spawnRCS(fdir, dt);
   }
 
@@ -545,7 +775,7 @@ function physicsStep(dt){
   }
 
   // 电量：SAS / 发电
-  if(G.sas && sh.elec>0) sh.elec=Math.max(0, sh.elec - sh.elecUse*dt);
+  if(G.sas && !cheatFuel && sh.elec>0) sh.elec=Math.max(0, sh.elec - sh.elecUse*dt);
   if(sh.hasSolar && isSunlit(sh.x, sh.y)){
     sh.elec=Math.min(sh.elecMax, sh.elec + sh.elecGen*dt);
   }
@@ -606,6 +836,16 @@ function checkCollision(body){
   const surf=body.R+sh.radius;
   if(r<surf){
     const out={x:dx/r, y:dy/r};
+    // 作弊：无敌——任何接触都视为软着陆
+    if(G.cheats.god){
+      sh.x=body.x+out.x*surf; sh.y=body.y+out.y*surf;
+      sh.vx=body.vx; sh.vy=body.vy;
+      sh.onGround=true;
+      const lifting=(G.throttle>0 && sh.thrust>0 && !G.roverDrive);
+      if(lifting){ G.state='flight'; }
+      else if(G.state==='flight'){ G.state='landed'; }
+      return;
+    }
     // 用相对天体的速度判定着陆/坠毁（天体自身在轨道上高速运动）
     const rvx=sh.vx-body.vx, rvy=sh.vy-body.vy;
     const speed=Math.hypot(rvx,rvy);
@@ -751,6 +991,25 @@ function updateDebris(dt){
     for(const b of BODIES){ if(Math.hypot(d.x-b.x,d.y-b.y) < b.R){ hit=true; break; } }
     if(hit) G.debris.splice(i,1);
   }
+}
+
+//==================================================================
+//  作弊：瞬移入轨（围绕主导天体的顺行圆轨道）
+//==================================================================
+function cheatOrbit(){
+  const sh=G.ship;
+  if(!sh || !sh.alive || (G.state!=='flight' && G.state!=='landed')) return;
+  const dom=dominantBody(sh.x, sh.y) || TERRA;
+  const dx=sh.x-dom.x, dy=sh.y-dom.y;
+  const rl=Math.hypot(dx,dy)||1;
+  const ux=dx/rl, uy=dy/rl;
+  const r=Math.max(rl, dom.R+60000);
+  sh.x=dom.x+ux*r; sh.y=dom.y+uy*r;
+  const vc=Math.sqrt(dom.mu/r);
+  sh.vx=dom.vx - uy*vc; sh.vy=dom.vy + ux*vc;   // 顺行（CCW）圆轨道速度
+  sh.onGround=false; G.docked=false; G.roverDrive=false;
+  if(G.state!=='flight') G.state='flight';
+  G.camera.x=sh.x; G.camera.y=sh.y;
 }
 
 //==================================================================
@@ -909,12 +1168,16 @@ function drawStation(sc){
 }
 function drawDebris(d, sc){
   const s=worldToScreen(d.x,d.y);
-  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(d.angle);
-  let yOff=0; const parts=d.parts;
-  // 简化：画整体小块
-  ctx.fillStyle='#888';
-  const h=18*sc, w=10*sc;
-  ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(d.angle);
+  let yOff=0, th=0;
+  for(let i=0;i<d.parts.length;i++) th+=PARTS[d.parts[i]].h;
+  yOff=th/2*sc;
+  for(let i=d.parts.length-1;i>=0;i--){
+    const dd=PARTS[d.parts[i]];
+    const ph=dd.h*sc, pw=dd.w*sc;
+    drawPartShape(ctx, 0, yOff-ph/2, pw, ph, dd, 0.85, (d.flips && d.flips[i]) || {h:false,v:false});
+    yOff-=ph;
+  }
   ctx.restore();
 }
 function drawShip(){
@@ -970,6 +1233,9 @@ function updateHUD(){
     `<div><span class="k">${i18n.t('sfs_attitude')}</span> <span class="v">${(sh.angle*180/Math.PI).toFixed(0)}°</span></div>`+
     `<div>${stTxt}</div>`+
     `<div><span class="k">${i18n.t('sfs_time')}</span> <span class="v">${formatTime(G.time)}</span></div>`;
+  if(G.cheats.fuel||G.cheats.god||G.cheats.thrust){
+    el.innerHTML += `<div><span class="k">⚠</span> <span class="v" style="color:#ffd23c">${i18n.t('sfs_cheat_on')}</span></div>`;
+  }
 
   document.getElementById('throttleBar').style.height=(G.throttle*100)+'%';
   document.getElementById('throttleTxt').textContent=i18n.t('sfs_throttle')+' '+Math.round(G.throttle*100)+'%';
@@ -1005,6 +1271,7 @@ window.addEventListener('keydown', e=>{
   if(k==='m') toggleMap();
   if(k==='r') resetToBuild();
   if(k==='g') toggleRover();
+  if(k==='c') toggleCheatPanel();
   if(k===' '){ e.preventDefault(); if(G.docked) undock(); else stage(); }
   if(k===',') changeWarp(-1);
   if(k==='.') changeWarp(1);
@@ -1049,6 +1316,23 @@ document.getElementById('roverBtn').onclick=toggleRover;
 document.getElementById('warpBtn').onclick=()=>changeWarp(1);
 document.getElementById('resetBtn').onclick=resetToBuild;
 
+//==================================================================
+//  作弊系统：面板开关与选项绑定
+//==================================================================
+const cheatPanel=document.getElementById('cheatPanel');
+function toggleCheatPanel(){ cheatPanel.classList.toggle('hidden'); }
+document.getElementById('cheatBtn').onclick=toggleCheatPanel;
+document.getElementById('ckClose').onclick=toggleCheatPanel;
+document.getElementById('ckFuel').addEventListener('change',e=>{
+  G.cheats.fuel=e.target.checked;
+  if(G.cheats.fuel && G.ship){   // 开启时顺手加满
+    G.ship.fuel=G.ship.fuelMax; G.ship.rcsFuel=G.ship.rcsFuelMax; G.ship.elec=G.ship.elecMax;
+  }
+});
+document.getElementById('ckGod').addEventListener('change',e=>{ G.cheats.god=e.target.checked; });
+document.getElementById('ckThrust').addEventListener('change',e=>{ G.cheats.thrust=e.target.checked; });
+document.getElementById('ckOrbit').onclick=cheatOrbit;
+
 function toggleSAS(){ G.sas=!G.sas; }
 function toggleMap(){ G.mapMode=!G.mapMode; if(G.mapMode) G.camera.targetScale=Math.min(G.camera.targetScale,0.0009); }
 function toggleRover(){ if(G.ship&&G.ship.onGround&&G.ship.hasWheel) G.roverDrive=!G.roverDrive; }
@@ -1065,6 +1349,7 @@ function showState(){
   document.getElementById('buildUI').classList.toggle('hidden', G.state!=='build');
   document.getElementById('hud').classList.toggle('hidden', !(G.state==='flight'||G.state==='landed'));
   document.getElementById('endOverlay').classList.add('hidden');
+  document.getElementById('cheatPanel').classList.add('hidden');
 }
 function toBuild(){ G.state='build'; G.selPart=-1; drawBuild(); showState(); }
 function resetToBuild(){ G.particles=[]; G.debris=[]; toBuild(); }
@@ -1143,7 +1428,7 @@ i18n.init({
       sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向',
       sfs_launch:'🚀 发射', sfs_back_menu:'返回菜单',
       sfs_map:'星图 (M)', sfs_sas:'SAS (Z)', sfs_stage:'分级 (Space)', sfs_rover:'漫游车 (G)', sfs_reset:'重置 (R)',
-      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置',
+      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置 · C 作弊',
       sfs_throttle:'油门', sfs_retry:'重新飞行', sfs_to_build:'回建造台',
       sfs_body:'天体', sfs_alt:'高度', sfs_speed:'速度(相对)', sfs_ap:'远地点 Ap', sfs_pe:'近地点 Pe',
       sfs_fuel:'燃料', sfs_rcs:'RCS', sfs_elec:'电量', sfs_attitude:'姿态', sfs_time:'时间',
@@ -1154,7 +1439,10 @@ i18n.init({
       sfs_total_mass:'总质量', sfs_dry:'干', sfs_thrust:'总推力', sfs_twr:'推重比(母星)', sfs_twr_low:'<1，无法起飞',
       sfs_isp:'比冲', sfs_dv:'总冲量', sfs_staged:'分级后 ≈', sfs_burn:'理论燃烧', sfs_stages:'分级数',
       sfs_elec_cap:'电量容量', sfs_elec_gen:'发电', sfs_leg:'着陆架', sfs_wheel:'轮子', sfs_dock_port:'对接端口',
-      sfs_yes:'有', sfs_no:'无', sfs_height:'火箭高度'
+      sfs_yes:'有', sfs_no:'无', sfs_height:'火箭高度',
+      sfs_cheat:'作弊 (C)', sfs_cheat_title:'作弊菜单',
+      sfs_cheat_fuel:'无限燃料 / RCS / 电量', sfs_cheat_god:'无敌（永不坠毁）', sfs_cheat_thrust:'引擎推力 ×5',
+      sfs_cheat_orbit:'🛰 瞬移入轨', sfs_cheat_close:'关闭', sfs_cheat_on:'作弊已开启'
     },
     en: {
       sfs_menu_title:'Space Flight Sim', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · Build · Launch · Orbit · Land · Dock · Rover',
@@ -1163,7 +1451,7 @@ i18n.init({
       sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · click a part to select · use flip buttons to orient',
       sfs_launch:'🚀 Launch', sfs_back_menu:'Back to Menu',
       sfs_map:'Map (M)', sfs_sas:'SAS (Z)', sfs_stage:'Stage (Space)', sfs_rover:'Rover (G)', sfs_reset:'Reset (R)',
-      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · R reset',
+      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · R reset · C cheats',
       sfs_throttle:'Throttle', sfs_retry:'Retry', sfs_to_build:'To Build',
       sfs_body:'Body', sfs_alt:'Altitude', sfs_speed:'Speed (rel)', sfs_ap:'Apoapsis', sfs_pe:'Periapsis',
       sfs_fuel:'Fuel', sfs_rcs:'RCS', sfs_elec:'Power', sfs_attitude:'Attitude', sfs_time:'Time',
@@ -1174,7 +1462,10 @@ i18n.init({
       sfs_total_mass:'Total mass', sfs_dry:'dry', sfs_thrust:'Thrust', sfs_twr:'TWR (home)', sfs_twr_low:'<1, cannot lift off',
       sfs_isp:'Isp', sfs_dv:'Δv', sfs_staged:'after staging ≈', sfs_burn:'Burn', sfs_stages:'Stages',
       sfs_elec_cap:'Power cap', sfs_elec_gen:'Gen', sfs_leg:'Legs', sfs_wheel:'Wheels', sfs_dock_port:'Dock port',
-      sfs_yes:'yes', sfs_no:'no', sfs_height:'Height'
+      sfs_yes:'yes', sfs_no:'no', sfs_height:'Height',
+      sfs_cheat:'Cheats (C)', sfs_cheat_title:'Cheat Menu',
+      sfs_cheat_fuel:'Infinite fuel / RCS / power', sfs_cheat_god:'Indestructible (never crash)', sfs_cheat_thrust:'Engine thrust ×5',
+      sfs_cheat_orbit:'🛰 Teleport to orbit', sfs_cheat_close:'Close', sfs_cheat_on:'Cheats on'
     }
   },
   onLang: function(){
@@ -1186,7 +1477,7 @@ i18n.init({
 
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel};
 }
 
 })();

@@ -49,6 +49,7 @@
     <button class="cb" id="stageBtn" data-i18n="sfs_stage">分级 (Space)</button>
     <button class="cb" id="roverBtn" data-i18n="sfs_rover">漫游车 (G)</button>
     <button class="cb" id="warpBtn">×1</button>
+    <button class="cb" id="cheatBtn" data-i18n="sfs_cheat">作弊 (C)</button>
     <button class="cb" id="resetBtn" data-i18n="sfs_reset">重置 (R)</button>
   </div>
   <div id="throttleWrap"><div id="throttleBar" style="height:0%"></div></div>
@@ -61,7 +62,16 @@
     <button class="cb" id="sas2">S</button>
     <button class="cb" id="map2">M</button>
   </div>
-  <div id="hint" data-i18n="sfs_controls">W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置</div>
+  <div id="hint" data-i18n="sfs_controls">W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置 · C 作弊</div>
+  <!-- 作弊面板（C 或顶部按钮开关） -->
+  <div id="cheatPanel" class="hidden">
+    <h3 data-i18n="sfs_cheat_title">作弊菜单</h3>
+    <label><input type="checkbox" id="ckFuel"><span data-i18n="sfs_cheat_fuel">无限燃料 / RCS / 电量</span></label>
+    <label><input type="checkbox" id="ckGod"><span data-i18n="sfs_cheat_god">无敌（永不坠毁）</span></label>
+    <label><input type="checkbox" id="ckThrust"><span data-i18n="sfs_cheat_thrust">引擎推力 ×5</span></label>
+    <button class="btn sm" id="ckOrbit" data-i18n="sfs_cheat_orbit">🛰 瞬移入轨</button>
+    <button class="btn alt sm" id="ckClose" data-i18n="sfs_cheat_close">关闭</button>
+  </div>
 </div>
 
 <!-- 结束 -->
