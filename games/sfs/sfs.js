@@ -19,11 +19,15 @@ const LUNA = { name:'LUNA', nameZh:'月球', nameEn:'Luna', R:50000, mu:1.62*500
 const VESTA = { name:'VESTA', nameZh:'维斯塔', nameEn:'Vesta', R:120000, mu:3.71*120000*120000, color:'#c0623a', color2:'#7a3a20',
               atmo:0, parent:SUN, a:14.0e6, phase:3.4 };
 const JOVE = { name:'JOVE', nameZh:'朱庇特', nameEn:'Jove', R:500000, mu:24.79*500000*500000, color:'#caa46b', color2:'#8a6a3a',
-              atmo:800000, parent:SUN, a:26.0e6, phase:5.1 };
+              atmo:800000, parent:SUN, a:26.0e6, phase:5.1, rings:true };
 const IO = { name:'IO', nameZh:'伊奥', nameEn:'Io', R:80000, mu:1.8*80000*80000, color:'#d9c24a', color2:'#9a8030',
               atmo:0, parent:JOVE, a:1.2e6, phase:0.6 };
-const BODIES = [SUN, TERRA, LUNA, VESTA, JOVE, IO];
-const LANDABLE = [TERRA, LUNA, VESTA, JOVE, IO]; // 可从表面起飞
+const GLACIUS = { name:'GLACIUS', nameZh:'格拉修斯(冰星)', nameEn:'Glacius (Ice)', R:150000, mu:5.4*150000*150000, color:'#9fd8e8', color2:'#3f7a9e',
+              atmo:9000, parent:SUN, a:11.0e6, phase:2.2 };
+const EUROPA = { name:'EUROPA', nameZh:'欧罗巴(冰月)', nameEn:'Europa', R:70000, mu:1.3*70000*70000, color:'#d8ecf4', color2:'#7f9fb0',
+              atmo:0, parent:JOVE, a:2.2e6, phase:2.9 };
+const BODIES = [SUN, TERRA, LUNA, VESTA, GLACIUS, JOVE, IO, EUROPA];
+const LANDABLE = [TERRA, LUNA, VESTA, GLACIUS, JOVE, IO, EUROPA]; // 可从表面起飞
 
 // 每帧按层级递归求天体位置/速度（惯性系，日心）
 function bodyState(b, t){
@@ -75,13 +79,14 @@ const PARTS = {
   solar:  { name:'太阳能板', nameEn:'Solar Panel', w:18, h:4, mass:120, color:'#2980b9', role:'solar', elecGen:10, elec:20 },
   battery:{ name:'电池', nameEn:'Battery', w:9, h:9, mass:150, color:'#27ae60', role:'battery', elec:200 },
   fairing:{ name:'整流罩', nameEn:'Fairing', w:13, h:18, mass:150, color:'#ecf0f1', role:'fairing' },
+  chute:  { name:'降落伞', nameEn:'Parachute', w:12, h:7, mass:100, color:'#e67e22', role:'chute' },
 };
 // 建造面板分组
 const PALETTE_GROUPS = [
   { title:'核心', titleEn:'Core', items:['pod','probe','tankS','tankL','engS','engL'] },
   { title:'分级 / 对接', titleEn:'Staging / Dock', items:['decoupler','dock','fairing'] },
   { title:'姿态 / 电源', titleEn:'Attitude / Power', items:['sasM','rcs','solar','battery'] },
-  { title:'着陆 / 漫游', titleEn:'Landing / Rover', items:['leg','wheel'] },
+  { title:'着陆 / 漫游', titleEn:'Landing / Rover', items:['leg','wheel','chute'] },
 ];
 
 //==================================================================
@@ -105,6 +110,10 @@ const G = {
   throttle:0,
   roverDrive:false,
   cheats:{ fuel:false, god:false, thrust:false },
+  chuteOpen:false,
+  awayHome:false,
+  buildZoom:1,
+  missions:null,
   mapMode:false,
   particles:[],
   stars:[],
@@ -205,7 +214,7 @@ const bctx = buildCanvas.getContext('2d');
 function buildPartRects(){
   const bw=buildCanvas.width, bh=buildCanvas.height;
   const s=rocketStats(G.parts);
-  const scale=3.0;
+  const scale=3.0*G.buildZoom;
   const totalH=s.height*scale;
   let y=bh/2 + totalH/2;
   const cx=bw/2;
@@ -281,6 +290,7 @@ function drawPartShape(c, cx, py, pw, ph, d, alpha, flip){
     case 'solar':     drawSolar(c,w,h,d.color,lw);     break;
     case 'battery':   drawBattery(c,w,h,d.color,lw);   break;
     case 'fairing':   drawFairing(c,w,h,d.color,lw);   break;
+    case 'chute':     drawChute(c,w,h,d.color,lw);     break;
     default:          drawTank(c,w,h,d.color,lw);      break;  // tank
   }
   c.restore();
@@ -532,6 +542,17 @@ function drawFairing(c,w,h,col,lw){
   c.beginPath(); c.moveTo(w*0.5,h*0.02); c.lineTo(w*0.5,h*0.88); c.stroke();
   c.fillStyle='#e74c3c'; c.beginPath(); c.arc(w*0.5,h*0.05,Math.max(1,w*0.08),0,Math.PI*2); c.fill();
 }
+// 降落伞（收纳态）：金属伞包 + 捆扎条纹 + 橙色色带
+function drawChute(c,w,h,col,lw){
+  c.fillStyle=cylGrad(c,0,w,'#b9c2cc');
+  roundRect(c,w*0.18,h*0.25,w*0.64,h*0.75,2); c.fill(); outline(c,lw);
+  c.fillStyle=hexShade(col,-0.15);
+  c.fillRect(w*0.18,h*0.25,w*0.64,h*0.15);
+  c.fillStyle=hexShade(col,0.1);
+  c.fillRect(w*0.30,h*0.62,w*0.40,h*0.11);
+  c.fillStyle='rgba(255,255,255,.35)';
+  c.fillRect(w*0.18,h*0.42,w*0.10,h*0.12);
+}
 function updateBuildStats(s){
   const el = document.getElementById('buildStats');
   G.lastBuildStats = s;
@@ -618,6 +639,12 @@ buildCanvas.onclick=(e)=>{
   for(const r of rects){ if(y>=r.py && y<=r.py+r.ph){ sel=r.i; break; } }
   G.selPart=sel; drawBuild();
 };
+// 建造台滚轮缩放
+buildCanvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  G.buildZoom=Math.max(0.45, Math.min(2.2, G.buildZoom*(e.deltaY>0?0.9:1.1)));
+  drawBuild();
+}, {passive:false});
 function flipSel(axis){
   const idx = G.selPart>=0 ? G.selPart : G.parts.length-1;
   if(idx<0) return;
@@ -665,7 +692,7 @@ function startFlight(){
     elec:s.elecCap, elecMax:s.elecCap, elecUse:s.elecUse, elecGen:s.elecGen,
     height:s.height, radius:halfH,
     hasLeg:s.hasLeg, hasWheel:s.hasWheel, hasSolar:s.hasSolar, hasDock:s.hasDock,
-    onGround:false, alive:true,
+    onGround:false, alive:true, heat:0,
   };
   recomputeShip(ship);
   G.ship = ship;
@@ -674,6 +701,7 @@ function startFlight(){
   G.time = 0;
   G.warp = 1; G.warpIdx = 0;
   G.throttle = 0; G.sas = false; G.roverDrive=false; G.docked=false;
+  G.chuteOpen=false; G.awayHome=false;
   G.camera.x = ship.x; G.camera.y = ship.y;
   G.camera.scale = 0.09; G.camera.targetScale = 0.09;
   G.state = 'flight';
@@ -780,7 +808,7 @@ function physicsStep(dt){
     sh.elec=Math.min(sh.elecMax, sh.elec + sh.elecGen*dt);
   }
 
-  // 大气阻力（使用相对天体的速度，避免发射时轨道速度造成虚假阻力；并数值钳制防发散）
+  // 大气：阻力 / 气动加热 / 降落伞减速与稳定（使用相对天体的速度；数值钳制防发散）
   const dom = dominantBody(sh.x, sh.y);
   if(dom && dom.atmo>0){
     const dx=sh.x-dom.x, dy=sh.y-dom.y; const r=Math.hypot(dx,dy);
@@ -790,13 +818,33 @@ function physicsStep(dt){
       const rvx = sh.vx - dom.vx, rvy = sh.vy - dom.vy; // 相对天体速度
       const sp = Math.hypot(rvx, rvy);
       if(sp>0){
-        const Cd=0.18, A=sh.dragArea;
+        const Cd=0.18;
+        const A=sh.dragArea * (G.chuteOpen?9:1);   // 开伞大幅增加阻力面积
         let aDrag = 0.5*rho*sp*sp*Cd*A/curMass;
-        const maxDec = sp/dt*0.5;     // 单步最多减当前相对速度的一半，防止显式欧拉发散
-        if(aDrag>maxDec) aDrag=maxDec;
-        const dec = aDrag*dt;
-        ax -= dec*(rvx/sp); ay -= dec*(rvy/sp);
+        const maxDrag = sp/dt*0.5;    // 单步最多减当前相对速度的一半，防止显式欧拉发散
+        if(aDrag>maxDrag) aDrag=maxDrag;
+        ax -= aDrag*(rvx/sp); ay -= aDrag*(rvy/sp); // 注意：aDrag 是加速度，积分时再乘 dt
+        // 气动加热：仅在超高速（>1250 m/s）再入时积热，热流 ∝ ρ·v⁴；整流罩隔热，无敌作弊豁免
+        if(G.cheats.god){ sh.heat=0; }
+        else {
+          const fairK = sh.parts.includes('fairing') ? 0.35 : 1;
+          if(sp>1250){
+            const q = rho*sp*sp*sp*sp*1.2e-12;
+            sh.heat=Math.min(1.05, sh.heat + q*2*fairK*dt);
+          } else {
+            sh.heat=Math.max(0, sh.heat-0.3*dt);
+          }
+          if(sh.heat>=1){ crashOverheat(dom); return; }
+        }
+        // 开伞时自动稳定为反向飞行姿态（机头逆速度方向）
+        if(G.chuteOpen && sp>40){
+          const ta=Math.atan2(-rvx, rvy);
+          let da=ta-sh.angle; da=Math.atan2(Math.sin(da),Math.cos(da));
+          sh.angVel += da*2.5*dt;
+          sh.angVel *= Math.pow(0.05,dt);
+        }
         if(sp>300) spawnAero(sp);
+        if(sp>900) spawnPlasma(rvx,rvy,sp);
       }
     }
   }
@@ -841,6 +889,8 @@ function checkCollision(body){
       sh.x=body.x+out.x*surf; sh.y=body.y+out.y*surf;
       sh.vx=body.vx; sh.vy=body.vy;
       sh.onGround=true;
+      onLanded(body);
+      G.chuteOpen=false;
       const lifting=(G.throttle>0 && sh.thrust>0 && !G.roverDrive);
       if(lifting){ G.state='flight'; }
       else if(G.state==='flight'){ G.state='landed'; }
@@ -852,13 +902,16 @@ function checkCollision(body){
     const up={x:Math.sin(sh.angle), y:-Math.cos(sh.angle)};
     const align=up.x*out.x+up.y*out.y;
     const vn=rvx*out.x+rvy*out.y;
-    // 着陆容差：有着陆架更宽松
-    const maxSpeed = sh.hasLeg ? 110 : 60;
-    const minAlign = sh.hasLeg ? 0.45 : 0.85;
+    // 着陆容差：有着陆架更宽松；开伞时进一步放宽
+    let maxSpeed = sh.hasLeg ? 110 : 60;
+    let minAlign = sh.hasLeg ? 0.45 : 0.85;
+    if(G.chuteOpen){ maxSpeed += 60; minAlign = Math.min(minAlign, 0.30); }
     if(speed<maxSpeed && align>minAlign){
       sh.x=body.x+out.x*surf; sh.y=body.y+out.y*surf;
       if(vn<0){ sh.vx-=vn*out.x; sh.vy-=vn*out.y; }
       sh.onGround=true;
+      onLanded(body);
+      G.chuteOpen=false;
       const lifting=(G.throttle>0 && sh.fuel>0 && sh.thrust>0 && !G.roverDrive);
       if(lifting){ G.state='flight'; }
       else if(G.state==='flight'){ G.state='landed'; }
@@ -878,6 +931,19 @@ function crash(body){
   }
   G.state='crashed';
   showEnd(false, body);
+}
+
+// 过热解体：再入气动加热超限
+function crashOverheat(body){
+  const sh=G.ship;
+  sh.alive=false;
+  for(let i=0;i<50;i++){
+    const a=Math.random()*Math.PI*2; const sp=Math.random()*90+15;
+    G.particles.push({ x:sh.x, y:sh.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      life:0.9, max:0.9, size:Math.random()*5+2, color: Math.random()<0.4?'#fff4e0':(Math.random()<0.5?'#ff9a5a':'#ff5a3a') });
+  }
+  G.state='crashed';
+  showEnd(false, body, true);
 }
 
 function isSunlit(x,y){
@@ -926,6 +992,16 @@ function spawnAero(sp){
       size:Math.random()*3+2, color:'#ff9a5a' });
   }
 }
+// 再入等离子尾焰（沿速度反方向喷出）
+function spawnPlasma(rvx, rvy, sp){
+  const sh=G.ship;
+  for(let i=0;i<3;i++){
+    G.particles.push({ x:sh.x+(Math.random()-0.5)*sh.height*0.5, y:sh.y+(Math.random()-0.5)*sh.height*0.5,
+      vx:-rvx*0.3+(Math.random()-0.5)*80, vy:-rvy*0.3+(Math.random()-0.5)*80,
+      life:0.45, max:0.45, size:Math.random()*4+3,
+      color: Math.random()<0.4?'#fff4e0':(Math.random()<0.5?'#ff9a5a':'#ff5a3a') });
+  }
+}
 function updateParticles(dt){
   for(let i=G.particles.length-1;i>=0;i--){
     const p=G.particles[i];
@@ -961,6 +1037,7 @@ function stage(){
 }
 function jettison(dropParts, keepParts, dropFlips, keepFlips){
   const sh=G.ship;
+  unlockMission('stage');
   // 计算被抛部分的质量/燃料
   let dm=0, df=0, dr=0;
   for(const p of dropParts){ const d=PARTS[p]; dm+=d.mass; if(d.fuel) df+=d.fuel; if(d.rcsFuel) dr+=d.rcsFuel; }
@@ -1027,6 +1104,7 @@ function checkDock(){
   const align=up.x*toSt.x+up.y*toSt.y;
   if(relsp<6 && align>0.6){
     G.docked=true; G.dockMsg=i18n.t('sfs_docked')+' '+bodyName(st)+' · '+i18n.t('sfs_undock');
+    unlockMission('dock');
   }
 }
 function dockKeep(){
@@ -1134,6 +1212,16 @@ function render(){
   ctx.globalAlpha=1;
 
   if(G.ship && G.ship.alive) drawShip();
+
+  // 再入热光晕（船体周围橙红辉光，随热度增强）
+  if(G.ship && G.ship.alive && G.ship.heat>0.03){
+    const hs=worldToScreen(G.ship.x, G.ship.y);
+    const R=70*G.ship.heat+30;
+    const g=ctx.createRadialGradient(hs.x,hs.y,2, hs.x,hs.y,R);
+    g.addColorStop(0,'rgba(255,150,60,'+(0.55*G.ship.heat).toFixed(3)+')');
+    g.addColorStop(1,'rgba(255,80,20,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(hs.x,hs.y,R,0,Math.PI*2); ctx.fill();
+  }
 }
 function drawBody(b, sc, isBig){
   const s=worldToScreen(b.x,b.y);
@@ -1148,6 +1236,15 @@ function drawBody(b, sc, isBig){
   const g2=ctx.createRadialGradient(s.x-rad*0.3, s.y-rad*0.3, rad*0.1, s.x, s.y, rad);
   g2.addColorStop(0, b.color); g2.addColorStop(1, b.color2);
   ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(s.x,s.y,rad,0,Math.PI*2); ctx.fill();
+  // 行星光环（朱庇特）
+  if(b.rings && rad>2){
+    ctx.save(); ctx.translate(s.x,s.y); ctx.scale(1,0.32);
+    ctx.strokeStyle='rgba(200,190,160,.35)'; ctx.lineWidth=Math.max(1.2,rad*0.16);
+    ctx.beginPath(); ctx.arc(0,0,rad*1.45,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle='rgba(220,210,180,.22)'; ctx.lineWidth=Math.max(1,rad*0.07);
+    ctx.beginPath(); ctx.arc(0,0,rad*1.75,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
   if(isBig){ ctx.strokeStyle='rgba(180,210,255,.25)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.arc(s.x,s.y,rad,0,Math.PI*2); ctx.stroke(); }
   // 名称
@@ -1193,6 +1290,21 @@ function drawShip(){
     drawPartShape(ctx, 0, py, pw, ph, d, 1, (sh.flips && sh.flips[i]) || {h:false,v:false});
     yOff-=ph;
   }
+  // 张开的降落伞：伞绳 + 橙白条纹伞盖（局部坐标 -y 为机头方向）
+  if(G.chuteOpen){
+    const top=-sh.height/2*sc;
+    const R=Math.max(10, sh.height*sc*0.55);
+    const cy=top-R-Math.max(14, R*1.15);
+    ctx.strokeStyle='rgba(230,235,245,.85)'; ctx.lineWidth=Math.max(1, sc*8);
+    [-R*0.9,-R*0.45,0,R*0.45,R*0.9].forEach(function(sx){
+      ctx.beginPath(); ctx.moveTo(sx*0.22, top); ctx.lineTo(sx, cy+R*0.12); ctx.stroke();
+    });
+    const g=ctx.createLinearGradient(-R,0,R,0);
+    g.addColorStop(0,'#d84a1f'); g.addColorStop(0.5,'#f2f2ee'); g.addColorStop(1,'#d84a1f');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(0, cy, R, Math.PI, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(10,16,28,.5)'; ctx.lineWidth=1; ctx.stroke();
+  }
   // 对接端口高亮
   ctx.restore();
 }
@@ -1236,6 +1348,11 @@ function updateHUD(){
   if(G.cheats.fuel||G.cheats.god||G.cheats.thrust){
     el.innerHTML += `<div><span class="k">⚠</span> <span class="v" style="color:#ffd23c">${i18n.t('sfs_cheat_on')}</span></div>`;
   }
+  if(sh.heat>0.01){
+    el.innerHTML += `<div><span class="k">${i18n.t('sfs_heat')}</span> <span class="v ${sh.heat>0.7?'bad':'good'}">${(sh.heat*100).toFixed(0)}%</span></div>`;
+  }
+  document.getElementById('dockPanel').classList.toggle('hidden', !G.docked);
+  checkMissions();
 
   document.getElementById('throttleBar').style.height=(G.throttle*100)+'%';
   document.getElementById('throttleTxt').textContent=i18n.t('sfs_throttle')+' '+Math.round(G.throttle*100)+'%';
@@ -1272,6 +1389,8 @@ window.addEventListener('keydown', e=>{
   if(k==='r') resetToBuild();
   if(k==='g') toggleRover();
   if(k==='c') toggleCheatPanel();
+  if(k==='p') toggleChute();
+  if(k==='t') toggleMissionPanel();
   if(k===' '){ e.preventDefault(); if(G.docked) undock(); else stage(); }
   if(k===',') changeWarp(-1);
   if(k==='.') changeWarp(1);
@@ -1333,9 +1452,168 @@ document.getElementById('ckGod').addEventListener('change',e=>{ G.cheats.god=e.t
 document.getElementById('ckThrust').addEventListener('change',e=>{ G.cheats.thrust=e.target.checked; });
 document.getElementById('ckOrbit').onclick=cheatOrbit;
 
+//==================================================================
+//  任务 / 成就系统（localStorage 持久化）
+//==================================================================
+const MISSIONS=[
+  { id:'orbit',  zh:'到达稳定轨道', en:'Reach a stable orbit', zhD:'在任意天体周围进入闭合轨道（近地点高于大气层）', enD:'Enter a closed orbit around any body (periapsis above atmosphere)' },
+  { id:'luna',   zh:'登陆月球', en:'Land on Luna', zhD:'安全降落在月球表面', enD:'Touch down safely on Luna' },
+  { id:'vesta',  zh:'登陆维斯塔', en:'Land on Vesta', zhD:'安全降落在维斯塔表面', enD:'Touch down safely on Vesta' },
+  { id:'glacius',zh:'登陆格拉修斯', en:'Land on Glacius', zhD:'在冰星格拉修斯的稀薄大气中着陆', enD:'Land on the ice world Glacius' },
+  { id:'jove',   zh:'登陆朱庇特', en:'Land on Jove', zhD:'穿过厚重大气降落在气态巨行星上', enD:'Descend through the thick atmosphere of Jove' },
+  { id:'io',     zh:'登陆伊奥', en:'Land on Io', zhD:'降落在朱庇特的卫星伊奥上', enD:'Touch down on Io' },
+  { id:'europa', zh:'登陆欧罗巴', en:'Land on Europa', zhD:'降落在冰月欧罗巴上', enD:'Touch down on the icy moon Europa' },
+  { id:'dock',   zh:'与空间站对接', en:'Dock with the station', zhD:'缓慢接触并与绕泰拉的空间站对接', enD:'Dock with the station orbiting Terra' },
+  { id:'stage',  zh:'完成分级分离', en:'Perform staging', zhD:'用分离器抛掉用完的一级', enD:'Jettison a spent stage with a decoupler' },
+  { id:'rover',  zh:'驾驶漫游车', en:'Drive a rover', zhD:'在星球表面切换漫游车模式行驶', enD:'Switch to rover mode and drive on the surface' },
+  { id:'chute',  zh:'伞降着陆', en:'Parachute landing', zhD:'在降落伞张开的状态下安全着陆', enD:'Land safely with a deployed parachute' },
+  { id:'home',   zh:'凯旋回家', en:'Return home', zhD:'离开泰拉之后再次安全返回泰拉表面', enD:'Leave Terra and land back home safely' },
+];
+function loadMissions(){ try{ return JSON.parse(localStorage.getItem('sfs-missions-v1'))||{}; }catch(e){ return {}; } }
+function saveMissions(){ try{ localStorage.setItem('sfs-missions-v1', JSON.stringify(G.missions)); }catch(e){} }
+G.missions = loadMissions();
+let missionToastTimer=null;
+function unlockMission(id){
+  const m=MISSIONS.find(x=>x.id===id);
+  if(!m || G.missions[id]) return;
+  G.missions[id]=true; saveMissions(); renderMissions();
+  const t=document.getElementById('missionToast');
+  if(t){
+    t.textContent='🏆 '+i18n.t('sfs_mission_toast')+'：'+(i18n.lang==='zh'?m.zh:m.en);
+    t.classList.add('show');
+    clearTimeout(missionToastTimer);
+    missionToastTimer=setTimeout(()=>t.classList.remove('show'), 3500);
+  }
+}
+function onLanded(body){
+  unlockMission(body.name.toLowerCase());
+  if(G.chuteOpen) unlockMission('chute');
+  if(body===TERRA && G.awayHome) unlockMission('home');
+}
+function renderMissions(){
+  const el=document.getElementById('missionList'); if(!el) return;
+  el.innerHTML='';
+  MISSIONS.forEach(function(m){
+    const done=!!G.missions[m.id];
+    const d=document.createElement('div'); d.className='mi'+(done?' done':'');
+    d.innerHTML='<span class="ic">'+(done?'✅':'⬜')+'</span><span class="miT">'+(i18n.lang==='zh'?m.zh:m.en)+'</span><div class="miD">'+(i18n.lang==='zh'?m.zhD:m.enD)+'</div>';
+    el.appendChild(d);
+  });
+}
+function toggleMissionPanel(){
+  const p=document.getElementById('missionPanel');
+  p.classList.toggle('hidden'); renderMissions();
+}
+function checkMissions(){
+  const sh=G.ship; if(!sh || !sh.alive) return;
+  if(G.docked) unlockMission('dock');
+  const dom=dominantBody(sh.x, sh.y);
+  if(dom){
+    if(dom!==TERRA) G.awayHome=true;
+    const o=orbitInfo(dom);
+    if(!o.escape && o.pe > (dom.atmo||0)+2000) unlockMission('orbit');
+  }
+}
+document.getElementById('missionBtn').onclick=toggleMissionPanel;
+document.getElementById('miClose').onclick=toggleMissionPanel;
+
+//==================================================================
+//  降落伞
+//==================================================================
+function toggleChute(){
+  const sh=G.ship;
+  if(!sh || !sh.alive) return;
+  if(!sh.parts.includes('chute')) return;
+  G.chuteOpen=!G.chuteOpen;
+}
+document.getElementById('chuteBtn').onclick=toggleChute;
+
+//==================================================================
+//  对接后的空间站服务：加注 / 充电 / 加装舱段
+//==================================================================
+document.getElementById('dkFuel').onclick=function(){
+  const sh=G.ship; if(!sh || !G.docked) return;
+  sh.fuel=sh.fuelMax; sh.rcsFuel=sh.rcsFuelMax;
+};
+document.getElementById('dkElec').onclick=function(){
+  const sh=G.ship; if(!sh || !G.docked) return;
+  sh.elec=sh.elecMax;
+};
+document.getElementById('dkMod').onclick=function(){
+  const sh=G.ship; if(!sh || !G.docked) return;
+  sh.parts.unshift('solar');
+  sh.flips=(sh.flips||[]).slice();
+  sh.flips.unshift({h:false,v:false});
+  recomputeShip(sh);
+  sh.elecMax=rocketStats(sh.parts).elecCap;
+  sh.elec=sh.elecMax;
+};
+document.getElementById('dkUndock').onclick=function(){ if(G.docked) undock(); };
+
+//==================================================================
+//  蓝图：本地保存 / 载入 / 删除 / 分享码导出导入
+//==================================================================
+function bpList(){ try{ return JSON.parse(localStorage.getItem('sfs-blueprints-v1'))||[]; }catch(e){ return []; } }
+function bpSaveList(l){ try{ localStorage.setItem('sfs-blueprints-v1', JSON.stringify(l)); }catch(e){} }
+function bpRender(){
+  const el=document.getElementById('bpList'); if(!el) return;
+  const list=bpList(); el.innerHTML='';
+  if(!list.length){
+    el.innerHTML='<div class="bpRow"><span class="nm" style="color:#8aa3cc">'+i18n.t('sfs_bp_empty')+'</span></div>';
+    return;
+  }
+  list.forEach(function(bp,i){
+    const d=document.createElement('div'); d.className='bpRow';
+    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=bp.name;
+    const use=document.createElement('button'); use.className='btn sm'; use.textContent=i18n.t('sfs_bp_use');
+    use.onclick=function(){
+      G.parts=bp.parts.slice();
+      G.flips=(bp.flips||[]).map(f=>({h:!!f.h, v:!!f.v}));
+      while(G.flips.length<G.parts.length) G.flips.push({h:false,v:false});
+      G.selPart=-1; drawBuild();
+    };
+    const exp=document.createElement('button'); exp.className='btn alt sm'; exp.textContent='⇪';
+    exp.title=i18n.t('sfs_bp_export');
+    exp.onclick=function(){
+      const code='GWBP1:'+btoa(unescape(encodeURIComponent(JSON.stringify(bp))));
+      const ta=document.getElementById('bpCode'); ta.value=code; ta.select();
+      try{ document.execCommand('copy'); }catch(e){}
+    };
+    const del=document.createElement('button'); del.className='btn alt sm'; del.textContent=i18n.t('sfs_bp_del');
+    del.onclick=function(){ const l=bpList(); l.splice(i,1); bpSaveList(l); bpRender(); };
+    d.appendChild(nm); d.appendChild(use); d.appendChild(exp); d.appendChild(del);
+    el.appendChild(d);
+  });
+}
+function bpSave(){
+  const name=prompt(i18n.t('sfs_bp_name'), i18n.t('sfs_bp_default'));
+  if(!name) return;
+  const l=bpList();
+  l.push({ name:name, parts:G.parts.slice(), flips:G.flips.map(f=>({h:f.h, v:f.v})) });
+  bpSaveList(l); bpRender();
+}
+function bpImport(){
+  const raw=(document.getElementById('bpCode').value||'').trim();
+  if(!raw) return;
+  try{
+    const json=raw.indexOf('GWBP1:')===0 ? JSON.parse(decodeURIComponent(escape(atob(raw.slice(6))))) : JSON.parse(raw);
+    if(!json.parts || !json.parts.every(p=>PARTS[p])) throw new Error('bad');
+    const l=bpList();
+    l.push({ name:json.name||'Imported', parts:json.parts, flips:json.flips||[] });
+    bpSaveList(l); bpRender();
+  }catch(e){ alert(i18n.t('sfs_bp_badcode')); }
+}
+document.getElementById('bpSaveBtn').onclick=bpSave;
+document.getElementById('bpLoadBtn').onclick=function(){
+  document.getElementById('bpPanel').classList.toggle('hidden');
+  bpRender();
+};
+document.getElementById('bpClose').onclick=function(){ document.getElementById('bpPanel').classList.add('hidden'); };
+document.getElementById('bpImportBtn').onclick=bpImport;
+
 function toggleSAS(){ G.sas=!G.sas; }
 function toggleMap(){ G.mapMode=!G.mapMode; if(G.mapMode) G.camera.targetScale=Math.min(G.camera.targetScale,0.0009); }
-function toggleRover(){ if(G.ship&&G.ship.onGround&&G.ship.hasWheel) G.roverDrive=!G.roverDrive; }
+function toggleRover(){ if(G.ship&&G.ship.onGround&&G.ship.hasWheel){ G.roverDrive=!G.roverDrive; if(G.roverDrive) unlockMission('rover'); } }
 function changeWarp(dir){
   G.warpIdx=Math.max(0, Math.min(G.WARPS.length-1, G.warpIdx+dir));
   G.warp=G.WARPS[G.warpIdx];
@@ -1353,11 +1631,12 @@ function showState(){
 }
 function toBuild(){ G.state='build'; G.selPart=-1; drawBuild(); showState(); }
 function resetToBuild(){ G.particles=[]; G.debris=[]; toBuild(); }
-function showEnd(win, body){
+function showEnd(win, body, overheat){
   const ov=document.getElementById('endOverlay');
   ov.className='overlay '+(win?'win':'lose');
-  document.getElementById('endTitle').textContent=win?i18n.t('sfs_win'):i18n.t('sfs_crash');
+  document.getElementById('endTitle').textContent=win?i18n.t('sfs_win'):(overheat?i18n.t('sfs_overheat'):i18n.t('sfs_crash'));
   if(win) document.getElementById('endMsg').textContent=i18n.t('sfs_win_msg').replace('{body}', bodyName(body));
+  else if(overheat) document.getElementById('endMsg').textContent=i18n.t('sfs_overheat_msg').replace('{body}', bodyName(body||TERRA));
   else document.getElementById('endMsg').textContent=i18n.t('sfs_crash_msg').replace('{body}', bodyName(body||{name:'星球',nameZh:'星球',nameEn:'planet'}));
   document.getElementById('hud').classList.add('hidden');
   ov.classList.remove('hidden');
@@ -1386,13 +1665,15 @@ function loop(t){
     const sub=simDt/steps;
     if(G.state==='flight' || G.state==='landed'){
       for(let i=0;i<steps;i++){
+        // 天体与飞船同步推进（原先天体整帧才更新一次，高时间加速下飞船会相对天体累积漂移）
+        G.time += sub;
+        updateBodies(G.time);
         physicsStep(sub);
         if(G.docked) dockKeep();
         if(!G.ship.alive) break;
       }
       if(!G.docked) updateDebris(sub*steps);
     }
-    G.time+=simDt;
     updateParticles(realDt);
     updateBodies(G.time);
 
@@ -1425,10 +1706,10 @@ i18n.init({
       sfs_menu_title:'航天模拟器', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · 建造 · 发射 · 入轨 · 登陆星球 · 对接 · 漫游车',
       sfs_start_build:'开始建造火箭', sfs_launch_body:'发射天体', sfs_part_lib:'零件库',
       sfs_remove:'删除零件', sfs_clear:'清空', sfs_flip_v:'↕ 上下翻转', sfs_flip_h:'↔ 左右翻转',
-      sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向',
+      sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 点击零件选中 · 翻转按钮调方向 · 滚轮缩放视图',
       sfs_launch:'🚀 发射', sfs_back_menu:'返回菜单',
       sfs_map:'星图 (M)', sfs_sas:'SAS (Z)', sfs_stage:'分级 (Space)', sfs_rover:'漫游车 (G)', sfs_reset:'重置 (R)',
-      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · R 重置 · C 作弊',
+      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · P 降落伞 · T 任务 · R 重置 · C 作弊',
       sfs_throttle:'油门', sfs_retry:'重新飞行', sfs_to_build:'回建造台',
       sfs_body:'天体', sfs_alt:'高度', sfs_speed:'速度(相对)', sfs_ap:'远地点 Ap', sfs_pe:'近地点 Pe',
       sfs_fuel:'燃料', sfs_rcs:'RCS', sfs_elec:'电量', sfs_attitude:'姿态', sfs_time:'时间',
@@ -1442,16 +1723,23 @@ i18n.init({
       sfs_yes:'有', sfs_no:'无', sfs_height:'火箭高度',
       sfs_cheat:'作弊 (C)', sfs_cheat_title:'作弊菜单',
       sfs_cheat_fuel:'无限燃料 / RCS / 电量', sfs_cheat_god:'无敌（永不坠毁）', sfs_cheat_thrust:'引擎推力 ×5',
-      sfs_cheat_orbit:'🛰 瞬移入轨', sfs_cheat_close:'关闭', sfs_cheat_on:'作弊已开启'
+      sfs_cheat_orbit:'🛰 瞬移入轨', sfs_cheat_close:'关闭', sfs_cheat_on:'作弊已开启',
+      sfs_chute:'降落伞 (P)', sfs_mission:'任务', sfs_mission_title:'任务 / 成就', sfs_mission_toast:'成就解锁',
+      sfs_heat:'热度', sfs_overheat:'过热解体！', sfs_overheat_msg:'再入速度过快，火箭在 {body} 上空烧毁。',
+      sfs_dock_title:'已对接 · 空间站服务', sfs_dock_fuel:'⛽ 加满燃料', sfs_dock_elec:'🔋 充满电量',
+      sfs_dock_module:'➕ 加装太阳板', sfs_dock_undock:'脱离 (G/Space)',
+      sfs_bp_save:'💾 保存蓝图', sfs_bp_load:'📂 蓝图库', sfs_bp_title:'蓝图库', sfs_bp_name:'蓝图名称',
+      sfs_bp_default:'我的火箭', sfs_bp_use:'载入', sfs_bp_del:'删', sfs_bp_export:'导出分享码',
+      sfs_bp_import_btn:'导入', sfs_bp_code_ph:'粘贴分享码…', sfs_bp_empty:'（还没有保存的蓝图）', sfs_bp_badcode:'分享码无效'
     },
     en: {
       sfs_menu_title:'Space Flight Sim', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · Build · Launch · Orbit · Land · Dock · Rover',
       sfs_start_build:'Build Rocket', sfs_launch_body:'Launch Body', sfs_part_lib:'Parts',
       sfs_remove:'Remove', sfs_clear:'Clear', sfs_flip_v:'Flip ↕', sfs_flip_h:'Flip ↔',
-      sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · click a part to select · use flip buttons to orient',
+      sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · click to select · flip buttons to orient · wheel to zoom',
       sfs_launch:'🚀 Launch', sfs_back_menu:'Back to Menu',
       sfs_map:'Map (M)', sfs_sas:'SAS (Z)', sfs_stage:'Stage (Space)', sfs_rover:'Rover (G)', sfs_reset:'Reset (R)',
-      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · R reset · C cheats',
+      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · P chute · T missions · R reset · C cheats',
       sfs_throttle:'Throttle', sfs_retry:'Retry', sfs_to_build:'To Build',
       sfs_body:'Body', sfs_alt:'Altitude', sfs_speed:'Speed (rel)', sfs_ap:'Apoapsis', sfs_pe:'Periapsis',
       sfs_fuel:'Fuel', sfs_rcs:'RCS', sfs_elec:'Power', sfs_attitude:'Attitude', sfs_time:'Time',
@@ -1465,19 +1753,27 @@ i18n.init({
       sfs_yes:'yes', sfs_no:'no', sfs_height:'Height',
       sfs_cheat:'Cheats (C)', sfs_cheat_title:'Cheat Menu',
       sfs_cheat_fuel:'Infinite fuel / RCS / power', sfs_cheat_god:'Indestructible (never crash)', sfs_cheat_thrust:'Engine thrust ×5',
-      sfs_cheat_orbit:'🛰 Teleport to orbit', sfs_cheat_close:'Close', sfs_cheat_on:'Cheats on'
+      sfs_cheat_orbit:'🛰 Teleport to orbit', sfs_cheat_close:'Close', sfs_cheat_on:'Cheats on',
+      sfs_chute:'Chute (P)', sfs_mission:'Missions', sfs_mission_title:'Missions / Achievements', sfs_mission_toast:'Achievement unlocked',
+      sfs_heat:'Heat', sfs_overheat:'Overheated!', sfs_overheat_msg:'Reentry too hot — the rocket burned up above {body}.',
+      sfs_dock_title:'Docked · Station Services', sfs_dock_fuel:'⛽ Refuel', sfs_dock_elec:'🔋 Recharge',
+      sfs_dock_module:'➕ Attach solar panel', sfs_dock_undock:'Undock (G/Space)',
+      sfs_bp_save:'💾 Save Blueprint', sfs_bp_load:'📂 Blueprints', sfs_bp_title:'Blueprints', sfs_bp_name:'Blueprint name',
+      sfs_bp_default:'My Rocket', sfs_bp_use:'Load', sfs_bp_del:'Del', sfs_bp_export:'Export share code',
+      sfs_bp_import_btn:'Import', sfs_bp_code_ph:'Paste share code…', sfs_bp_empty:'(no saved blueprints yet)', sfs_bp_badcode:'Invalid share code'
     }
   },
   onLang: function(){
     buildBodySel();
     buildPartList();
+    renderMissions();
     if(G.lastBuildStats) updateBuildStats(G.lastBuildStats);
   }
 });
 
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel,toggleChute,unlockMission,MISSIONS,checkMissions,onLanded,crashOverheat};
 }
 
 })();

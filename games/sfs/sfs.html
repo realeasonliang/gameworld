@@ -32,6 +32,18 @@
       <button class="btn alt sm" id="clearBtn" data-i18n="sfs_clear">清空</button>
       <button class="btn alt sm" id="flipVBtn" data-i18n="sfs_flip_v">↕ 上下翻转</button>
       <button class="btn alt sm" id="flipHBtn" data-i18n="sfs_flip_h">↔ 左右翻转</button>
+      <button class="btn alt sm" id="bpSaveBtn" data-i18n="sfs_bp_save">💾 保存蓝图</button>
+      <button class="btn alt sm" id="bpLoadBtn" data-i18n="sfs_bp_load">📂 蓝图库</button>
+    </div>
+    <!-- 蓝图库面板 -->
+    <div id="bpPanel" class="hidden">
+      <h3 data-i18n="sfs_bp_title">蓝图库</h3>
+      <div id="bpList"></div>
+      <textarea id="bpCode" rows="3" data-i18n-ph="sfs_bp_code_ph" placeholder="粘贴分享码…"></textarea>
+      <div id="bpBtns">
+        <button class="btn sm" id="bpImportBtn" data-i18n="sfs_bp_import_btn">导入</button>
+        <button class="btn alt sm" id="bpClose" data-i18n="sfs_cheat_close">关闭</button>
+      </div>
     </div>
     <div id="buildHint" data-i18n="sfs_build_hint">拖拽零件到火箭上添加（落点决定上/下位置）· 点击火箭零件选中 · 用翻转按钮调整方向</div>
     <button class="btn" id="launchBtn" style="margin-top:12px;" data-i18n="sfs_launch">🚀 发射</button>
@@ -48,6 +60,8 @@
     <button class="cb" id="sasBtn" data-i18n="sfs_sas">SAS (Z)</button>
     <button class="cb" id="stageBtn" data-i18n="sfs_stage">分级 (Space)</button>
     <button class="cb" id="roverBtn" data-i18n="sfs_rover">漫游车 (G)</button>
+    <button class="cb" id="chuteBtn" data-i18n="sfs_chute">降落伞 (P)</button>
+    <button class="cb" id="missionBtn" data-i18n="sfs_mission">任务</button>
     <button class="cb" id="warpBtn">×1</button>
     <button class="cb" id="cheatBtn" data-i18n="sfs_cheat">作弊 (C)</button>
     <button class="cb" id="resetBtn" data-i18n="sfs_reset">重置 (R)</button>
@@ -72,6 +86,22 @@
     <button class="btn sm" id="ckOrbit" data-i18n="sfs_cheat_orbit">🛰 瞬移入轨</button>
     <button class="btn alt sm" id="ckClose" data-i18n="sfs_cheat_close">关闭</button>
   </div>
+  <!-- 对接后的空间站服务面板 -->
+  <div id="dockPanel" class="hidden">
+    <h3 data-i18n="sfs_dock_title">已对接 · 空间站服务</h3>
+    <button class="btn sm" id="dkFuel" data-i18n="sfs_dock_fuel">⛽ 加满燃料</button>
+    <button class="btn sm" id="dkElec" data-i18n="sfs_dock_elec">🔋 充满电量</button>
+    <button class="btn sm" id="dkMod" data-i18n="sfs_dock_module">➕ 加装太阳板</button>
+    <button class="btn alt sm" id="dkUndock" data-i18n="sfs_dock_undock">脱离 (G/Space)</button>
+  </div>
+  <!-- 任务 / 成就面板（T 开关） -->
+  <div id="missionPanel" class="hidden">
+    <h3 data-i18n="sfs_mission_title">任务 / 成就</h3>
+    <div id="missionList"></div>
+    <button class="btn alt sm" id="miClose" data-i18n="sfs_cheat_close">关闭</button>
+  </div>
+  <!-- 成就解锁提示 -->
+  <div id="missionToast"></div>
 </div>
 
 <!-- 结束 -->

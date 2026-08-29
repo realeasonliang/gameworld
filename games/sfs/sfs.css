@@ -84,6 +84,42 @@
     color:#dce7ff; cursor:pointer; }
   #cheatPanel input[type="checkbox"] { accent-color:#2b6cff; width:15px; height:15px; cursor:pointer; }
   #cheatPanel .btn { margin-top:4px; }
+  /* 对接服务面板 */
+  #dockPanel { position:absolute; right:14px; top:56px; background:rgba(10,22,20,.94);
+    border:1px solid #2e6e52; border-radius:10px; padding:14px 16px; z-index:30;
+    pointer-events:auto; display:flex; flex-direction:column; gap:9px; min-width:236px;
+    box-shadow:0 10px 34px rgba(0,0,0,.55); }
+  #dockPanel h3 { font-size:15px; color:#7fffb0; letter-spacing:1px; }
+  /* 任务面板 */
+  #missionPanel { position:absolute; right:14px; top:56px; background:rgba(12,18,34,.94);
+    border:1px solid #3a4a6e; border-radius:10px; padding:14px 16px; z-index:30;
+    pointer-events:auto; display:flex; flex-direction:column; gap:9px; min-width:260px;
+    max-height:66vh; overflow:auto; box-shadow:0 10px 34px rgba(0,0,0,.55); }
+  #missionPanel h3 { font-size:15px; color:#7fffd4; letter-spacing:2px; }
+  #missionPanel .mi { font-size:13px; padding:6px 2px; border-bottom:1px solid rgba(60,90,150,.22); }
+  #missionPanel .mi:last-of-type { border-bottom:none; }
+  #missionPanel .mi .miT { color:#dce7ff; }
+  #missionPanel .mi .miD { color:#8aa3cc; font-size:11px; margin-top:1px; padding-left:22px; }
+  #missionPanel .mi.done .miT { color:#7fffb0; }
+  #missionPanel .mi .ic { margin-right:5px; }
+  /* 成就解锁提示 */
+  #missionToast { position:absolute; left:50%; top:110px; transform:translateX(-50%);
+    background:rgba(16,38,22,.94); color:#7fffb0; border:1px solid #3a7a4e;
+    padding:10px 22px; border-radius:10px; font-size:14px; letter-spacing:1px;
+    opacity:0; transition:opacity .3s; pointer-events:none; z-index:40;
+    box-shadow:0 6px 22px rgba(0,0,0,.5); }
+  #missionToast.show { opacity:1; }
+  /* 蓝图库面板 */
+  #bpPanel { background:rgba(12,18,34,.95); border:1px solid #3a4a6e; border-radius:10px;
+    padding:12px 14px; margin-top:8px; }
+  #bpPanel h3 { font-size:14px; color:#7fffd4; letter-spacing:2px; margin-bottom:6px; }
+  #bpPanel .bpRow { display:flex; align-items:center; gap:6px; padding:5px 0; font-size:13px; }
+  #bpPanel .bpRow .nm { flex:1; color:#dce7ff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #bpPanel .bpRow .btn { padding:4px 10px; font-size:12px; }
+  #bpCode { width:100%; margin-top:8px; background:#0a1020; color:#cfe0ff;
+    border:1px solid #25365c; border-radius:6px; padding:6px 8px; font-size:11px;
+    font-family:monospace; resize:vertical; }
+  #bpBtns { display:flex; gap:8px; margin-top:8px; }
   /* 结束界面 */
   #endOverlay { background:rgba(4,7,14,.86); }
   #endOverlay h1 { font-size:46px; margin-bottom:10px; letter-spacing:4px; }
