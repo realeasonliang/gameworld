@@ -32,6 +32,8 @@
       <button class="btn alt sm" id="clearBtn" data-i18n="sfs_clear">清空</button>
       <button class="btn alt sm" id="flipVBtn" data-i18n="sfs_flip_v">↕ 上下翻转</button>
       <button class="btn alt sm" id="flipHBtn" data-i18n="sfs_flip_h">↔ 左右翻转</button>
+      <button class="btn alt sm" id="sideBtn" data-i18n="sfs_side_toggle">⇤ 侧挂 ⇥</button>
+      <button class="btn alt sm" id="symBtn" data-i18n="sfs_sym">对称</button>
       <button class="btn alt sm" id="bpSaveBtn" data-i18n="sfs_bp_save">💾 保存蓝图</button>
       <button class="btn alt sm" id="bpLoadBtn" data-i18n="sfs_bp_load">📂 蓝图库</button>
     </div>
@@ -62,6 +64,7 @@
     <button class="cb" id="roverBtn" data-i18n="sfs_rover">漫游车 (G)</button>
     <button class="cb" id="chuteBtn" data-i18n="sfs_chute">降落伞 (P)</button>
     <button class="cb" id="missionBtn" data-i18n="sfs_mission">任务</button>
+    <button class="cb" id="apBtn" data-i18n="sfs_ap">自动驾驶 (V)</button>
     <button class="cb" id="warpBtn">×1</button>
     <button class="cb" id="cheatBtn" data-i18n="sfs_cheat">作弊 (C)</button>
     <button class="cb" id="resetBtn" data-i18n="sfs_reset">重置 (R)</button>
@@ -99,6 +102,15 @@
     <h3 data-i18n="sfs_mission_title">任务 / 成就</h3>
     <div id="missionList"></div>
     <button class="btn alt sm" id="miClose" data-i18n="sfs_cheat_close">关闭</button>
+  </div>
+  <!-- 自动驾驶面板（V 或顶部按钮开关） -->
+  <div id="apPanel" class="hidden">
+    <h3 data-i18n="sfs_ap_title">自动驾驶</h3>
+    <div id="apStatus" data-i18n="sfs_ap_idle">待机 · 选择模式</div>
+    <button class="btn sm" id="apOrbit" data-i18n="sfs_ap_orbit">🚀 自动入轨</button>
+    <button class="btn sm" id="apLand" data-i18n="sfs_ap_land">🛬 自动着陆</button>
+    <button class="btn alt sm" id="apOffBtn" data-i18n="sfs_ap_off">✖ 关闭</button>
+    <div id="apTip">按 A / D 手动转向会自动退出</div>
   </div>
   <!-- 成就解锁提示 -->
   <div id="missionToast"></div>

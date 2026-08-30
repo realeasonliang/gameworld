@@ -96,7 +96,10 @@ const G = {
   state:'menu',
   parts:['pod','tankL','engL'],   // 顶部→底部
   flips:['pod','tankL','engL'].map(()=>({h:false,v:false})), // 与 parts 一一对应的翻转状态
+  sides:['pod','tankL','engL'].map(()=>0),  // 挂点：0=中轴堆叠，-1=左侧挂，+1=右侧挂
+  sym:false,                      // 对称模式：侧向零件左右成对放置
   selPart:-1,                     // 建造台当前选中的零件下标
+  ap:{ mode:'OFF', phase:'', targetAlt:0 },   // 自动驾驶状态机
   launchBody: TERRA.name,
   ship:null,
   station: STATION,
@@ -143,12 +146,49 @@ for(let i=0;i<220;i++){
 //==================================================================
 //  火箭属性计算
 //==================================================================
-function rocketStats(parts){
+// 布局：把零件序列解析成「中轴堆叠 + 侧向挂载」的行
+// 规则：side=0 的零件依次向上堆叠并决定火箭高度；side=±1 的零件挂在它前面最近的中轴零件侧面，
+//       不占高度，同一侧依次向外排列。这样不保存父节点索引，插入/删除都不会错位。
+function computeLayout(parts, sides){
+  const rows=[];
+  const center={};            // 中轴零件下标 → {py, h, w}（py = 距火箭底部的高度）
+  const acc=new Map();        // 父零件下标 → 该侧已占用的宽度
+  let y=0, lastCenter=-1;
+  for(let i=0;i<parts.length;i++){
+    const d=PARTS[parts[i]];
+    const side=(sides&&sides[i])||0;
+    if(side===0){
+      center[i]={py:y, h:d.h, w:d.w};
+      rows.push({ i, key:parts[i], side:0, ox:0, w:d.w, h:d.h, py:y });
+      lastCenter=i; y+=d.h;
+    } else {
+      const p = lastCenter>=0 ? center[lastCenter] : {py:0, h:y||d.h, w:0};
+      const a = acc.get(lastCenter) || {l:0, r:0};
+      const dir = side<0 ? -1 : 1;
+      const used = dir<0 ? a.l : a.r;
+      const ox = dir*(p.w/2 + used + d.w/2);
+      const py = p.py + Math.max(0, (p.h-d.h)/2);   // 与父零件垂直居中对齐
+      rows.push({ i, key:parts[i], side:side, ox, w:d.w, h:d.h, py });
+      if(dir<0) a.l+=d.w; else a.r+=d.w;
+      acc.set(lastCenter, a);
+    }
+  }
+  let halfW=0;
+  for(const r of rows) halfW=Math.max(halfW, Math.abs(r.ox)+r.w/2);
+  return { rows, height:y, width:halfW*2 };
+}
+
+function rocketStats(parts, sides){
   let dry=0, fuel=0, thrust=0, ispNum=0, height=0, width=0;
   let rcsFuel=0, rcsThrust=0, elecCap=0, elecUse=0, elecGen=0;
-  let hasLeg=false, hasWheel=false, hasSolar=false, hasDock=false, hasRcs=false;
+  let hasLeg=false, hasWheel=false, hasSolar=false, hasDock=false, hasRcs=false, hasCore=false;
   let stages=1;
-  for(const p of parts){
+  let torqueAcc=0, inertia=0;
+  const L=computeLayout(parts, sides);
+  const oxOf={};
+  for(const r of L.rows) oxOf[r.i]=r.ox;
+  for(let pi=0; pi<parts.length; pi++){
+    const p = parts[pi];
     const d = PARTS[p];
     dry += d.mass;
     if(d.fuel) fuel += d.fuel;
@@ -161,9 +201,13 @@ function rocketStats(parts){
     if(d.role==='wheel') hasWheel=true;
     if(d.role==='dock') hasDock=true;
     if(d.role==='decoupler') stages++;
-    height += d.h;
-    if(d.w > width) width = d.w;
+    if(d.role==='pod'||d.role==='probe') hasCore=true;
+    if(d.thrust) torqueAcc += d.thrust*(oxOf[pi]||0);           // 偏置推力 → 力矩
+    const ox=oxOf[pi]||0;
+    inertia += d.mass*(ox*ox + (d.h*d.h+d.w*d.w)/12);
   }
+  height = L.height;
+  width  = L.width || 0;
   const ispAvg = ispNum>0 ? thrust/ispNum : 0;
   const wet = dry + fuel;
   const twr = thrust>0 ? thrust/(wet*TERRA.mu/(TERRA.R*TERRA.R)) : 0;
@@ -173,8 +217,10 @@ function rocketStats(parts){
   const burn = (thrust>0 && ispAvg>0) ? fuel/(thrust/(ispAvg*G0)) : 0;
   // 气动阻力面积：以最大宽度估计的迎风截面积（m²），避免过大导致无法起飞
   const dragArea = Math.max(6, width*width*0.05);
+  const thrustOff = thrust>0 ? torqueAcc/thrust : 0;   // 推力合力相对中轴的横向偏置（米）
   return { dry, fuel, thrust, ispAvg, height, width, wet, twr, dv, dvStaged, burn, dragArea,
-           rcsFuel, rcsThrust, hasRcs, elecCap, elecUse, elecGen, hasLeg, hasWheel, hasSolar, hasDock, stages };
+           rcsFuel, rcsThrust, hasRcs, elecCap, elecUse, elecGen, hasLeg, hasWheel, hasSolar,
+           hasDock, hasCore, stages, thrustOff, inertia:Math.max(1, inertia) };
 }
 function estimateStagedDv(parts){
   // 找出最低分离器，把其下部分当作第一级（先烧完再抛），估算二级总 Δv
@@ -196,10 +242,12 @@ function estimateStagedDv(parts){
 }
 
 function recomputeShip(sh){
-  const s = rocketStats(sh.parts);
+  const s = rocketStats(sh.parts, sh.sides);
   sh.dry = s.dry; sh.thrust = s.thrust; sh.ispAvg = s.ispAvg; sh.height = s.height; sh.dragArea = s.dragArea;
   sh.rcsThrust = s.rcsThrust; sh.hasRcs = s.hasRcs; sh.hasLeg = s.hasLeg; sh.hasWheel = s.hasWheel;
   sh.hasSolar = s.hasSolar; sh.hasDock = s.hasDock;
+  sh.rows = computeLayout(sh.parts, sh.sides).rows;   // 含侧向偏移，供渲染/残骸使用
+  sh.thrustOff = s.thrustOff; sh.inertia = s.inertia;
   // 燃料/电量按比例保留（分级时外部已扣减）
   if(sh.fuel> sh.fuelMax){ sh.fuelMax = sh.fuel; }
   if(sh.rcsFuel> sh.rcsFuelMax){ sh.rcsFuelMax = sh.rcsFuel; }
@@ -213,18 +261,17 @@ const buildCanvas = document.getElementById('buildCanvas');
 const bctx = buildCanvas.getContext('2d');
 function buildPartRects(){
   const bw=buildCanvas.width, bh=buildCanvas.height;
-  const s=rocketStats(G.parts);
   const scale=3.0*G.buildZoom;
-  const totalH=s.height*scale;
-  let y=bh/2 + totalH/2;
+  const L=computeLayout(G.parts, G.sides);
+  const totalH=L.height*scale;
+  const baseY=bh/2 + totalH/2;      // 火箭底部在画布中的 y
   const cx=bw/2;
   const rects=[];
-  for(let i=0;i<G.parts.length;i++){
-    const d=PARTS[G.parts[i]];
-    const ph=d.h*scale, pw=d.w*scale;
-    const py=y-ph;
-    rects.push({i, key:G.parts[i], cx, py, ph, pw, cy:py+ph/2});
-    y=py;
+  for(const r of L.rows){
+    const ph=r.h*scale, pw=r.w*scale;
+    const py=baseY-(r.py+r.h)*scale;
+    rects.push({ i:r.i, key:r.key, side:r.side, ox:r.ox,
+                 cx:cx+r.ox*scale, py, ph, pw, cy:py+ph/2 });
   }
   return rects;
 }
@@ -234,8 +281,24 @@ function insertIndexAt(y){
   for(let i=0;i<rects.length;i++){ if(y>rects[i].cy) return i; }
   return rects.length;
 }
+// 拖放落点 → {index, side}：横向偏离中轴超过阈值就判定为侧向挂载
+function dropTargetAt(x, y){
+  const rects=buildPartRects();
+  let idx=rects.length;
+  for(let i=0;i<rects.length;i++){ if(y>rects[i].cy){ idx=i; break; } }
+  const bw=buildCanvas.width;
+  const dx=x-bw/2;
+  // 阈值：参考该高度处零件的半宽，够不着就算侧向
+  let thr=16;
+  for(const r of rects){ if(Math.abs(x-r.cx)<=r.pw/2+10 && y>=r.py-6 && y<=r.py+r.ph+6){ thr=Math.max(thr, r.pw/2+8); break; } }
+  let side=0;
+  if(Math.abs(dx)>thr) side = dx<0 ? -1 : 1;
+  return { index:idx, side };
+}
 function drawBuild(){
   const bw = buildCanvas.width, bh = buildCanvas.height;
+  while(G.sides.length<G.parts.length) G.sides.push(0);
+  if(G.sides.length>G.parts.length) G.sides.length=G.parts.length;
   bctx.clearRect(0,0,bw,bh);
   bctx.fillStyle='#070b14'; bctx.fillRect(0,0,bw,bh);
   const s = rocketStats(G.parts);
@@ -569,7 +632,9 @@ function updateBuildStats(s){
     `${i18n.t('sfs_stages')}：<b>${s.stages}</b> · RCS${i18n.t('sfs_fuel')}：<b>${fmt(s.rcsFuel)}</b><br>`+
     `${i18n.t('sfs_elec_cap')}：<b>${fmt(s.elecCap)}</b> · ${i18n.t('sfs_elec_gen')}：<b>${s.elecGen}/s</b><br>`+
     `${i18n.t('sfs_leg')}：${s.hasLeg?has:none} · ${i18n.t('sfs_wheel')}：${s.hasWheel?has:none} · ${i18n.t('sfs_dock_port')}：${s.hasDock?has:none}<br>`+
-    `${i18n.t('sfs_height')}：<b>${s.height.toFixed(0)} m</b>`;
+    `${i18n.t('sfs_height')}：<b>${s.height.toFixed(0)} m</b> · ${i18n.t('sfs_width')}：<b>${s.width.toFixed(0)} m</b>`+
+    (s.hasCore?'':`<br><span class="warn">${i18n.t('sfs_no_core')}</span>`)+
+    (Math.abs(s.thrustOff)>0.01?`<br><span class="warn">${i18n.t('sfs_thrust_off')} ${s.thrustOff.toFixed(1)} m</span>`:'');
 }
 function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
 
@@ -591,10 +656,11 @@ buildBodySel();
 
 // 零件按钮
 const partList = document.getElementById('partList');
-function addPart(key, index){
+function addPart(key, index, side){
   if(index===undefined || index<0 || index>G.parts.length) index=G.parts.length;
   G.parts.splice(index,0,key);
   G.flips.splice(index,0,{h:false,v:false});
+  G.sides.splice(index,0,side||0);
   drawBuild();
 }
 function buildPartList(){
@@ -627,16 +693,31 @@ buildCanvas.ondrop=(e)=>{
   const key=e.dataTransfer.getData('text/plain');
   if(!PARTS[key]) return;
   const rect=buildCanvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(buildCanvas.width/rect.width);
   const y=(e.clientY-rect.top)*(buildCanvas.height/rect.height);
-  const idx=insertIndexAt(y);
-  addPart(key, idx); G.selPart=idx; drawBuild();
+  const tgt=dropTargetAt(x,y);
+  if(G.sym && tgt.side!==0){          // 对称模式：左右各挂一个
+    addPart(key, tgt.index, -1);
+    addPart(key, tgt.index, 1);
+    G.selPart=tgt.index;
+  } else {
+    addPart(key, tgt.index, tgt.side);
+    G.selPart=tgt.index;
+  }
+  drawBuild();
 };
 buildCanvas.onclick=(e)=>{
   const rect=buildCanvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(buildCanvas.width/rect.width);
   const y=(e.clientY-rect.top)*(buildCanvas.height/rect.height);
   const rects=buildPartRects();
-  let sel=-1;
-  for(const r of rects){ if(y>=r.py && y<=r.py+r.ph){ sel=r.i; break; } }
+  let sel=-1, bestDx=1e9;
+  for(const r of rects){
+    if(y>=r.py-2 && y<=r.py+r.ph+2){
+      const dx=Math.abs(x-r.cx);
+      if(dx<bestDx){ bestDx=dx; sel=r.i; }   // 同一高度时选横向最近的（区分左右挂载件）
+    }
+  }
   G.selPart=sel; drawBuild();
 };
 // 建造台滚轮缩放
@@ -654,24 +735,39 @@ function flipSel(axis){
 }
 document.getElementById('flipVBtn').onclick=()=>flipSel('v');
 document.getElementById('flipHBtn').onclick=()=>flipSel('h');
+// 选中零件的挂点循环：中轴 → 左侧 → 右侧 → 中轴
+function cycleSide(){
+  const idx = G.selPart>=0 ? G.selPart : G.parts.length-1;
+  if(idx<0 || idx>=G.parts.length) return;
+  G.sides[idx] = (G.sides[idx]||0)===0 ? -1 : (G.sides[idx]<0 ? 1 : 0);
+  drawBuild();
+}
+document.getElementById('sideBtn').onclick=cycleSide;
+document.getElementById('symBtn').onclick=()=>{
+  G.sym=!G.sym;
+  document.getElementById('symBtn').classList.toggle('on', G.sym);
+};
 document.getElementById('removeBtn').onclick=()=>{
   const idx = G.selPart>=0 ? G.selPart : G.parts.length-1;
-  if(G.parts.length>1 && G.parts[idx]!=='pod' && G.parts[idx]!=='probe'){
-    G.parts.splice(idx,1); G.flips.splice(idx,1);
-    if(G.selPart>=G.parts.length) G.selPart=G.parts.length-1;
-    drawBuild();
-  }
+  if(idx<0 || idx>=G.parts.length) return;      // 驾驶舱也可删除，允许空箭（发射时会提示）
+  G.parts.splice(idx,1); G.flips.splice(idx,1); G.sides.splice(idx,1);
+  if(G.selPart>=G.parts.length) G.selPart=G.parts.length-1;
+  drawBuild();
 };
-document.getElementById('clearBtn').onclick=()=>{ G.parts=['pod']; G.flips=[{h:false,v:false}]; G.selPart=-1; drawBuild(); };
+document.getElementById('clearBtn').onclick=()=>{ G.parts=[]; G.flips=[]; G.sides=[]; G.selPart=-1; drawBuild(); };
 
 //==================================================================
 //  发射 → 飞行状态
 //==================================================================
 function findBody(name){ return BODIES.find(b=>b.name===name) || TERRA; }
 function startFlight(){
+  if(!G.parts.length) return false;      // 空箭不允许发射
+  // 先把时间归零再定位天体：否则会用上一班飞行遗留的 G.time 摆位置，
+  // 而时间随后被清零 → 天体瞬移回轨道起点，飞船被孤零零留在深空
+  G.time = 0;
   updateBodies(G.time);
   const body = findBody(G.launchBody);
-  const s = rocketStats(G.parts);
+  const s = rocketStats(G.parts, G.sides);
   const halfH = s.height/2;
   // 朝外法线：相对父天体（行星相对太阳，卫星相对行星），保证贴在天体表面正确法线
   const px = body.parent ? body.parent.x : 0;
@@ -687,6 +783,7 @@ function startFlight(){
     angle, angVel:0,
     parts: G.parts.slice(),
     flips: G.flips.slice(),
+    sides: G.sides.slice(),
     dry:0, fuel:s.fuel, fuelMax:s.fuel, thrust:0, ispAvg:0,
     rcsFuel:s.rcsFuel, rcsFuelMax:s.rcsFuel, rcsThrust:0,
     elec:s.elecCap, elecMax:s.elecCap, elecUse:s.elecUse, elecGen:s.elecGen,
@@ -702,10 +799,12 @@ function startFlight(){
   G.warp = 1; G.warpIdx = 0;
   G.throttle = 0; G.sas = false; G.roverDrive=false; G.docked=false;
   G.chuteOpen=false; G.awayHome=false;
+  G.ap={ mode:'OFF', phase:'', targetAlt:0 };     // 每次发射重置自动驾驶
   G.camera.x = ship.x; G.camera.y = ship.y;
   G.camera.scale = 0.09; G.camera.targetScale = 0.09;
   G.state = 'flight';
   showState();
+  return true;
 }
 
 //==================================================================
@@ -758,6 +857,9 @@ function physicsStep(dt){
   sh.angVel = Math.max(-2.5, Math.min(2.5, sh.angVel));
   sh.angle += sh.angVel*dt;
 
+  // 自动驾驶：接管油门与姿态（放在姿态阻尼之后，避免被衰减掉）
+  if(G.ap.mode!=='OFF') autopilot(dt);
+
   const g = gravityAt(sh.x, sh.y);
   let ax=g.ax, ay=g.ay;
   const curMass = sh.dry + sh.fuel;
@@ -770,12 +872,16 @@ function physicsStep(dt){
   if(engineOn){
     const F=G.throttle*sh.thrust*(G.cheats.thrust?5:1);
     ax += F*fdir.x/curMass; ay += F*fdir.y/curMass;
+    // 偏置推力产生力矩：侧挂发动机不对称时火箭会自转（需 SAS 抵消）
+    if(sh.thrustOff && sh.inertia>0){
+      sh.angVel += (-F*sh.thrustOff/sh.inertia)*dt;
+    }
     if(!cheatFuel){
       const burnRate = sh.thrust/(sh.ispAvg*G0);
       sh.fuel=Math.max(0, sh.fuel - burnRate*G.throttle*dt);
     }
     thrusting=true;
-    spawnExhaust(fdir, dt, G.throttle);
+    spawnExhaust(fdir, dt, G.throttle, sh.thrustOff||0);
   }
 
   // RCS 平移
@@ -962,10 +1068,13 @@ function isSunlit(x,y){
 }
 
 // 尾焰
-function spawnExhaust(fdir, dt, thr){
+function spawnExhaust(fdir, dt, thr, ox){
   const sh=G.ship;
-  const bx=sh.x - fdir.x*(sh.height/2);
-  const by=sh.y - fdir.y*(sh.height/2);
+  // 侧挂发动机：沿箭体横向偏移喷口位置
+  const rx=Math.cos(sh.angle), ry=Math.sin(sh.angle);
+  const off=(ox||0);
+  const bx=sh.x - fdir.x*(sh.height/2) + rx*off;
+  const by=sh.y - fdir.y*(sh.height/2) + ry*off;
   const n=Math.ceil(thr*6);
   for(let i=0;i<n;i++){
     const spread=(Math.random()-0.5)*0.5; const ca=Math.cos(spread), sa=Math.sin(spread);
@@ -1025,7 +1134,8 @@ function stage(){
     // 若无分离器，尝试抛掉最底部的整流罩
     if(sh.parts.length>1 && PARTS[sh.parts[sh.parts.length-1]].role==='fairing'){
       const li=sh.parts.length-1;
-      jettison(sh.parts.slice(li), sh.parts.slice(0, li), (sh.flips||[]).slice(li), (sh.flips||[]).slice(0, li));
+      jettison(sh.parts.slice(li), sh.parts.slice(0, li), (sh.flips||[]).slice(li), (sh.flips||[]).slice(0, li),
+               (sh.sides||[]).slice(li), (sh.sides||[]).slice(0, li));
     }
     return;
   }
@@ -1033,9 +1143,11 @@ function stage(){
   const keepParts = sh.parts.slice(0, idx);
   const dropFlips = (sh.flips||[]).slice(idx);
   const keepFlips = (sh.flips||[]).slice(0, idx);
-  jettison(dropParts, keepParts, dropFlips, keepFlips);
+  const dropSides = (sh.sides||[]).slice(idx);
+  const keepSides = (sh.sides||[]).slice(0, idx);
+  jettison(dropParts, keepParts, dropFlips, keepFlips, dropSides, keepSides);
 }
-function jettison(dropParts, keepParts, dropFlips, keepFlips){
+function jettison(dropParts, keepParts, dropFlips, keepFlips, dropSides, keepSides){
   const sh=G.ship;
   unlockMission('stage');
   // 计算被抛部分的质量/燃料
@@ -1044,19 +1156,20 @@ function jettison(dropParts, keepParts, dropFlips, keepFlips){
   // 残骸
   const fdir={x:Math.sin(sh.angle), y:-Math.cos(sh.angle)};
   const kick=10;
-  G.debris.push({ parts:dropParts, flips:dropFlips||[], x:sh.x, y:sh.y,
+  G.debris.push({ parts:dropParts, flips:dropFlips||[], sides:dropSides||[], x:sh.x, y:sh.y,
     vx:sh.vx - fdir.x*kick, vy:sh.vy - fdir.y*kick,
     angle:sh.angle, angVel:0.4, life:9999 });
   if(G.debris.length>14) G.debris.shift();
   // 主动飞船更新
   sh.parts = keepParts;
   sh.flips = (keepFlips && keepFlips.length===keepParts.length) ? keepFlips : keepParts.map(()=>({h:false,v:false}));
+  sh.sides = (keepSides && keepSides.length===keepParts.length) ? keepSides : keepParts.map(()=>0);
   recomputeShip(sh);
   sh.fuel = Math.max(0, sh.fuel - df);
   sh.fuelMax = sh.fuel;
   sh.rcsFuel = Math.max(0, sh.rcsFuel - dr);
   sh.rcsFuelMax = sh.rcsFuel;
-  sh.elecMax = rocketStats(keepParts).elecCap;
+  sh.elecMax = rocketStats(keepParts, keepSides).elecCap;
 }
 function updateDebris(dt){
   for(let i=G.debris.length-1;i>=0;i--){
@@ -1266,14 +1379,14 @@ function drawStation(sc){
 function drawDebris(d, sc){
   const s=worldToScreen(d.x,d.y);
   ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(d.angle);
-  let yOff=0, th=0;
-  for(let i=0;i<d.parts.length;i++) th+=PARTS[d.parts[i]].h;
-  yOff=th/2*sc;
-  for(let i=d.parts.length-1;i>=0;i--){
-    const dd=PARTS[d.parts[i]];
+  // 与飞船同一套布局（支持侧向挂点）
+  const L=computeLayout(d.parts, d.sides);
+  const halfH=L.height/2*sc;
+  for(const r of L.rows){
+    const dd=PARTS[r.key];
     const ph=dd.h*sc, pw=dd.w*sc;
-    drawPartShape(ctx, 0, yOff-ph/2, pw, ph, dd, 0.85, (d.flips && d.flips[i]) || {h:false,v:false});
-    yOff-=ph;
+    const py=(halfH - r.py*sc) - ph;
+    drawPartShape(ctx, r.ox*sc, py, pw, ph, dd, 0.85, (d.flips && d.flips[r.i]) || {h:false,v:false});
   }
   ctx.restore();
 }
@@ -1282,13 +1395,15 @@ function drawShip(){
   const s=worldToScreen(sh.x, sh.y);
   const sc=G.camera.scale;
   ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(sh.angle);
-  let yOff=sh.height/2*sc;
-  for(let i=sh.parts.length-1;i>=0;i--){
-    const d=PARTS[sh.parts[i]];
+  // 用布局行绘制（支持侧向挂载：ox 为相对中轴的横向偏移，单位米）
+  const rows = sh.rows && sh.rows.length ? sh.rows : computeLayout(sh.parts, sh.sides).rows;
+  const halfH = sh.height/2*sc;
+  for(const r of rows){
+    const d=PARTS[r.key];
     const ph=d.h*sc, pw=d.w*sc;
-    const py=yOff-ph/2;
-    drawPartShape(ctx, 0, py, pw, ph, d, 1, (sh.flips && sh.flips[i]) || {h:false,v:false});
-    yOff-=ph;
+    const yBottom = halfH - r.py*sc;       // 该零件底部（局部坐标，向下为正）
+    const py = yBottom - ph;
+    drawPartShape(ctx, r.ox*sc, py, pw, ph, d, 1, (sh.flips && sh.flips[r.i]) || {h:false,v:false});
   }
   // 张开的降落伞：伞绳 + 橙白条纹伞盖（局部坐标 -y 为机头方向）
   if(G.chuteOpen){
@@ -1351,7 +1466,11 @@ function updateHUD(){
   if(sh.heat>0.01){
     el.innerHTML += `<div><span class="k">${i18n.t('sfs_heat')}</span> <span class="v ${sh.heat>0.7?'bad':'good'}">${(sh.heat*100).toFixed(0)}%</span></div>`;
   }
+  if(G.ap.mode!=='OFF'){
+    el.innerHTML += `<div><span class="k">🤖 ${i18n.t('sfs_ap')}</span> <span class="v" style="color:#7fffd4">${i18n.t(G.ap.phase||'sfs_ap_idle')}</span></div>`;
+  }
   document.getElementById('dockPanel').classList.toggle('hidden', !G.docked);
+  updateApPanel();
   checkMissions();
 
   document.getElementById('throttleBar').style.height=(G.throttle*100)+'%';
@@ -1376,8 +1495,8 @@ function formatTime(t){
 const keys={left:false,right:false,up:false,down:false,tup:false,tdown:false,tleft:false,tright:false};
 window.addEventListener('keydown', e=>{
   const k=e.key.toLowerCase();
-  if(k==='a'||k==='arrowleft') keys.left=true;
-  if(k==='d'||k==='arrowright') keys.right=true;
+  if(k==='a'||k==='arrowleft'){ keys.left=true;  if(G.ap.mode!=='OFF') apOff('sfs_ap_off_msg'); }
+  if(k==='d'||k==='arrowright'){ keys.right=true; if(G.ap.mode!=='OFF') apOff('sfs_ap_off_msg'); }
   if(k==='w'||k==='arrowup') keys.up=true;
   if(k==='s'||k==='arrowdown') keys.down=true;
   if(k==='i') keys.tup=true;
@@ -1391,6 +1510,7 @@ window.addEventListener('keydown', e=>{
   if(k==='c') toggleCheatPanel();
   if(k==='p') toggleChute();
   if(k==='t') toggleMissionPanel();
+  if(k==='v') toggleApPanel();
   if(k===' '){ e.preventDefault(); if(G.docked) undock(); else stage(); }
   if(k===',') changeWarp(-1);
   if(k==='.') changeWarp(1);
@@ -1451,6 +1571,142 @@ document.getElementById('ckFuel').addEventListener('change',e=>{
 document.getElementById('ckGod').addEventListener('change',e=>{ G.cheats.god=e.target.checked; });
 document.getElementById('ckThrust').addEventListener('change',e=>{ G.cheats.thrust=e.target.checked; });
 document.getElementById('ckOrbit').onclick=cheatOrbit;
+
+//==================================================================
+//  自动驾驶：自动入轨（重力转弯+远地点圆化）/ 自动着陆（刹车+制导下降）
+//==================================================================
+// cut=true 时同时收油门（正常完成/退出时用，避免着陆后残余推力又把自己顶起来）
+function apOff(msg, cut){ G.ap={ mode:'OFF', phase:msg||'', targetAlt:0 }; if(cut) G.throttle=0; updateApPanel(); }
+// 目标轨道高度：有大气取大气层顶再高一点，无大气按半径比例
+function apTargetAlt(dom){ return (dom.atmo||0)>0 ? dom.atmo*1.4+4000 : dom.R*0.06+4000; }
+function apStartOrbit(){
+  const sh=G.ship; if(!sh||!sh.alive) return;
+  const dom=dominantBody(sh.x,sh.y)||TERRA;
+  if(!(sh.thrust>0)){ G.ap={mode:'OFF', phase:'sfs_ap_no_engine', targetAlt:0}; updateApPanel(); return; }
+  G.ap={ mode:'ASCENT', phase:'sfs_ap_ascent', targetAlt:apTargetAlt(dom) };
+  updateApPanel();
+}
+function apStartLand(){
+  const sh=G.ship; if(!sh||!sh.alive) return;
+  const dom=dominantBody(sh.x,sh.y)||TERRA;
+  const o=orbitInfo(dom);
+  const inOrbit = o && !o.escape && o.ap > (dom.atmo||0)*1.2+2000;
+  G.ap={ mode: inOrbit?'DEORBIT':'DESCENT', phase: inOrbit?'sfs_ap_deorbit':'sfs_ap_descent', targetAlt:0 };
+  updateApPanel();
+}
+// 机头指向 (dx,dy) 所需的箭体角度（fdir=(sin a, -cos a)）
+function apAngleTo(dx,dy){ return Math.atan2(dx,-dy); }
+// 一阶姿态跟踪：直接把角速度拉向目标，避免被阻尼吃掉
+function apSteer(angle, dt){
+  const sh=G.ship;
+  let da=angle-sh.angle; da=Math.atan2(Math.sin(da),Math.cos(da));
+  const want=Math.max(-2.5, Math.min(2.5, da*3));
+  sh.angVel += (want-sh.angVel)*Math.min(1, 10*dt);
+}
+function autopilot(dt){
+  const sh=G.ship; if(!sh||!sh.alive){ apOff(); return; }
+  const dom=dominantBody(sh.x,sh.y); if(!dom){ apOff(); return; }
+  if(G.docked){ apOff('sfs_ap_off_msg'); return; }
+  const ux=sh.x-dom.x, uy=sh.y-dom.y; const rl=Math.hypot(ux,uy)||1;
+  const up={x:ux/rl, y:uy/rl};
+  const alt=rl-dom.R;
+  const east={x:-up.y, y:up.x};                       // 顺行方向（CCW，与 cheatOrbit 一致）
+  const rvx=sh.vx-dom.vx, rvy=sh.vy-dom.vy;
+  const sp=Math.hypot(rvx,rvy)||1;
+  const pro={x:rvx/sp, y:rvy/sp};
+  const vert=rvx*up.x+rvy*up.y;                       // >0 = 上升
+  const o=orbitInfo(dom);
+  const braking = (G.ap.mode==='DEORBIT'||G.ap.mode==='DESCENT');
+  const hasChute = sh.parts.indexOf('chute')>=0;
+  // 没油就别硬撑：上升/圆化直接退出；离轨必须靠动力；下降段若既无伞又无大气且没油，注定摔
+  if(G.ap.mode==='ASCENT' || G.ap.mode==='COAST' || G.ap.mode==='CIRC'){
+    if(sh.fuel<=0){ apOff('sfs_ap_no_fuel', true); return; }
+  } else if(G.ap.mode==='DEORBIT'){
+    if(sh.fuel<=0){ apOff('sfs_ap_no_fuel', true); return; }
+  } else if(G.ap.mode==='DESCENT'){
+    if(sh.fuel<=0 && !(hasChute && (dom.atmo||0)>0)){ apOff('sfs_ap_no_fuel', true); return; }
+  }
+
+  switch(G.ap.mode){
+    case 'ASCENT': {
+      // 重力转弯：800m 内垂直上升，之后按高度比例把机头压向顺行方向
+      const span=Math.max(3000, (dom.atmo||0)*0.8);
+      const t=Math.max(0, Math.min(1, (alt-800)/span));
+      const tilt=(Math.PI/2)*Math.pow(t,0.75)*0.92;
+      const dir={x:up.x*Math.cos(tilt)+east.x*Math.sin(tilt), y:up.y*Math.cos(tilt)+east.y*Math.sin(tilt)};
+      apSteer(apAngleTo(dir.x,dir.y), dt);
+      G.throttle = (o.escape || o.ap>=G.ap.targetAlt) ? 0 : 1;
+      if(G.throttle===0){ G.ap.mode='COAST'; G.ap.phase='sfs_ap_coast'; }
+      break;
+    }
+    case 'COAST': {
+      apSteer(apAngleTo(pro.x,pro.y), dt);
+      G.throttle=0;
+      if(vert<25 || alt>G.ap.targetAlt*0.97){ G.ap.mode='CIRC'; G.ap.phase='sfs_ap_circ'; }
+      break;
+    }
+    case 'CIRC': {
+      apSteer(apAngleTo(pro.x,pro.y), dt);
+      const need=(dom.atmo||0)*0.85+2000;
+      G.throttle = (!o.escape && o.pe>=need) ? 0 : 1;
+      if(G.throttle===0) apOff('sfs_ap_done_orbit', true);
+      break;
+    }
+    case 'DEORBIT': {
+      apSteer(apAngleTo(-pro.x,-pro.y), dt);
+      G.throttle=1;
+      const stop=(dom.atmo||0)>0 ? (dom.atmo*0.35+200) : (dom.R*0.02);
+      if(!o.escape && o.pe<stop){ G.throttle=0; G.ap.mode='DESCENT'; G.ap.phase='sfs_ap_descent'; }
+      break;
+    }
+    case 'DESCENT': {
+      const ag=Math.max(0, rl-dom.R-sh.radius);          // 离地高度
+      const down=-vert;                                  // 下降速度（正=在下降）
+      const atmo=(dom.atmo||0);
+      const inAtmo=atmo>0 && alt<atmo*1.05;
+      if(hasChute && atmo>0 && inAtmo && sp<900 && !G.chuteOpen) toggleChute();
+      const mass=Math.max(1, sh.dry+sh.fuel);
+      const aAvail=(sh.thrust>0 && sh.fuel>0) ? (sh.thrust/mass)*0.75 : 0;
+      let brake=false, dir=up;
+      // 该高度允许的最大速度：v²=2·a·(ag-25)，即「刚好能在触地前刹停」的速度上限
+      const vAllowed = aAvail>0 ? Math.sqrt(Math.max(0, 2*aAvail*Math.max(0, ag-25))) : 0;
+      if(atmo>0){
+        // 有大气：速度被终端速度限制，别在高空浪费燃料——只在「再入过热」或「超出该高度允许速度」时点火
+        if(sp>1250 && alt>atmo*0.3 && alt<atmo*2.5){ brake=true; dir={x:-pro.x,y:-pro.y}; }
+        else if(ag<150){ brake = down>20; dir=up; }                 // 末段：控下降率软着陆
+        else if(aAvail>0){
+          brake = sp > vAllowed*0.9;
+          dir = (ag>400 && sp>80) ? {x:-pro.x,y:-pro.y} : up;
+        }
+      } else {
+        // 无大气：经典自杀式反推
+        if(ag<150){ brake = down>20; }
+        else if(aAvail>0){ brake = sp > vAllowed*0.9; }
+        dir=(ag>400 && sp>60) ? {x:-pro.x,y:-pro.y} : up;
+      }
+      apSteer(apAngleTo(dir.x,dir.y), dt);
+      G.throttle = brake ? 1 : 0;
+      if(sh.onGround) apOff('sfs_ap_done_land', true);
+      break;
+    }
+    default: G.throttle=G.throttle;
+  }
+}
+function updateApPanel(){
+  const b=document.getElementById('apBtn'); if(b) b.classList.toggle('on', G.ap.mode!=='OFF');
+  const st=document.getElementById('apStatus'); if(!st) return;
+  st.textContent = (G.ap.mode==='OFF')
+    ? (G.ap.phase ? i18n.t(G.ap.phase) : i18n.t('sfs_ap_idle'))
+    : i18n.t('sfs_ap_active')+'：'+i18n.t(G.ap.phase||'sfs_ap_idle');
+}
+function toggleApPanel(){
+  document.getElementById('apPanel').classList.toggle('hidden');
+  updateApPanel();
+}
+document.getElementById('apBtn').onclick=toggleApPanel;
+document.getElementById('apOrbit').onclick=apStartOrbit;
+document.getElementById('apLand').onclick=apStartLand;
+document.getElementById('apOffBtn').onclick=()=>apOff('sfs_ap_off_msg');
 
 //==================================================================
 //  任务 / 成就系统（localStorage 持久化）
@@ -1570,6 +1826,8 @@ function bpRender(){
       G.parts=bp.parts.slice();
       G.flips=(bp.flips||[]).map(f=>({h:!!f.h, v:!!f.v}));
       while(G.flips.length<G.parts.length) G.flips.push({h:false,v:false});
+      G.sides=(bp.sides||[]).slice();
+      while(G.sides.length<G.parts.length) G.sides.push(0);
       G.selPart=-1; drawBuild();
     };
     const exp=document.createElement('button'); exp.className='btn alt sm'; exp.textContent='⇪';
@@ -1589,7 +1847,7 @@ function bpSave(){
   const name=prompt(i18n.t('sfs_bp_name'), i18n.t('sfs_bp_default'));
   if(!name) return;
   const l=bpList();
-  l.push({ name:name, parts:G.parts.slice(), flips:G.flips.map(f=>({h:f.h, v:f.v})) });
+  l.push({ name:name, parts:G.parts.slice(), flips:G.flips.map(f=>({h:f.h, v:f.v})), sides:G.sides.slice() });
   bpSaveList(l); bpRender();
 }
 function bpImport(){
@@ -1599,7 +1857,7 @@ function bpImport(){
     const json=raw.indexOf('GWBP1:')===0 ? JSON.parse(decodeURIComponent(escape(atob(raw.slice(6))))) : JSON.parse(raw);
     if(!json.parts || !json.parts.every(p=>PARTS[p])) throw new Error('bad');
     const l=bpList();
-    l.push({ name:json.name||'Imported', parts:json.parts, flips:json.flips||[] });
+    l.push({ name:json.name||'Imported', parts:json.parts, flips:json.flips||[], sides:json.sides||[] });
     bpSaveList(l); bpRender();
   }catch(e){ alert(i18n.t('sfs_bp_badcode')); }
 }
@@ -1644,7 +1902,10 @@ function showEnd(win, body, overheat){
 document.getElementById('endRetry').onclick=()=>startFlight();
 document.getElementById('endBuild').onclick=()=>toBuild();
 document.getElementById('startBtn').onclick=()=>toBuild();
-document.getElementById('launchBtn').onclick=()=>startFlight();
+document.getElementById('launchBtn').onclick=()=>{
+  if(!G.parts.length){ alert(i18n.t('sfs_no_parts')); return; }   // 空箭不能发射
+  startFlight();
+};
 document.getElementById('backMenuBtn').onclick=()=>{ G.state='menu'; showState(); };
 
 //==================================================================
@@ -1706,10 +1967,10 @@ i18n.init({
       sfs_menu_title:'航天模拟器', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · 建造 · 发射 · 入轨 · 登陆星球 · 对接 · 漫游车',
       sfs_start_build:'开始建造火箭', sfs_launch_body:'发射天体', sfs_part_lib:'零件库',
       sfs_remove:'删除零件', sfs_clear:'清空', sfs_flip_v:'↕ 上下翻转', sfs_flip_h:'↔ 左右翻转',
-      sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 点击零件选中 · 翻转按钮调方向 · 滚轮缩放视图',
+      sfs_build_hint:'拖拽零件到火箭上添加（落点决定上/下位置）· 拖到左右两侧即为侧挂 · 点击零件选中 · 滚轮缩放视图',
       sfs_launch:'🚀 发射', sfs_back_menu:'返回菜单',
       sfs_map:'星图 (M)', sfs_sas:'SAS (Z)', sfs_stage:'分级 (Space)', sfs_rover:'漫游车 (G)', sfs_reset:'重置 (R)',
-      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · P 降落伞 · T 任务 · R 重置 · C 作弊',
+      sfs_controls:'W/S 油门 · A/D 转向 · Z SAS · M 星图 · , . 时间加速 · Space 分级 · IJKL 平移 · G 漫游车 · P 降落伞 · T 任务 · V 自动驾驶 · R 重置 · C 作弊',
       sfs_throttle:'油门', sfs_retry:'重新飞行', sfs_to_build:'回建造台',
       sfs_body:'天体', sfs_alt:'高度', sfs_speed:'速度(相对)', sfs_ap:'远地点 Ap', sfs_pe:'近地点 Pe',
       sfs_fuel:'燃料', sfs_rcs:'RCS', sfs_elec:'电量', sfs_attitude:'姿态', sfs_time:'时间',
@@ -1730,16 +1991,24 @@ i18n.init({
       sfs_dock_module:'➕ 加装太阳板', sfs_dock_undock:'脱离 (G/Space)',
       sfs_bp_save:'💾 保存蓝图', sfs_bp_load:'📂 蓝图库', sfs_bp_title:'蓝图库', sfs_bp_name:'蓝图名称',
       sfs_bp_default:'我的火箭', sfs_bp_use:'载入', sfs_bp_del:'删', sfs_bp_export:'导出分享码',
-      sfs_bp_import_btn:'导入', sfs_bp_code_ph:'粘贴分享码…', sfs_bp_empty:'（还没有保存的蓝图）', sfs_bp_badcode:'分享码无效'
+      sfs_bp_import_btn:'导入', sfs_bp_code_ph:'粘贴分享码…', sfs_bp_empty:'（还没有保存的蓝图）', sfs_bp_badcode:'分享码无效',
+      sfs_ap:'自动驾驶', sfs_ap_title:'自动驾驶', sfs_ap_active:'自动驾驶中', sfs_ap_idle:'待机 · 选择模式',
+      sfs_ap_orbit:'🚀 自动入轨', sfs_ap_land:'🛬 自动着陆', sfs_ap_off:'✖ 关闭',
+      sfs_ap_ascent:'上升段（重力转弯）', sfs_ap_coast:'滑行至远地点', sfs_ap_circ:'远地点圆化',
+      sfs_ap_deorbit:'离轨刹车', sfs_ap_descent:'制导下降',
+      sfs_ap_done_orbit:'入轨完成，已交还操控', sfs_ap_done_land:'着陆完成，已交还操控',
+      sfs_ap_no_fuel:'燃料耗尽，自动驾驶退出', sfs_ap_no_engine:'没有引擎，无法自动入轨', sfs_ap_off_msg:'自动驾驶已关闭',
+      sfs_side_toggle:'⇤ 侧挂 ⇥', sfs_sym:'对称', sfs_width:'宽度',
+      sfs_no_core:'无控制核心：转动力矩较低', sfs_thrust_off:'推力偏置', sfs_no_parts:'请先放置至少一个零件'
     },
     en: {
       sfs_menu_title:'Space Flight Sim', sfs_menu_sub:'SPACE FLIGHT SIMULATOR · Build · Launch · Orbit · Land · Dock · Rover',
       sfs_start_build:'Build Rocket', sfs_launch_body:'Launch Body', sfs_part_lib:'Parts',
       sfs_remove:'Remove', sfs_clear:'Clear', sfs_flip_v:'Flip ↕', sfs_flip_h:'Flip ↔',
-      sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · click to select · flip buttons to orient · wheel to zoom',
+      sfs_build_hint:'Drag parts onto the rocket (drop point sets position) · drop left/right of the axis to mount on the side · click to select · wheel to zoom',
       sfs_launch:'🚀 Launch', sfs_back_menu:'Back to Menu',
       sfs_map:'Map (M)', sfs_sas:'SAS (Z)', sfs_stage:'Stage (Space)', sfs_rover:'Rover (G)', sfs_reset:'Reset (R)',
-      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · P chute · T missions · R reset · C cheats',
+      sfs_controls:'W/S throttle · A/D steer · Z SAS · M map · , . time warp · Space stage · IJKL translate · G rover · P chute · T missions · V autopilot · R reset · C cheats',
       sfs_throttle:'Throttle', sfs_retry:'Retry', sfs_to_build:'To Build',
       sfs_body:'Body', sfs_alt:'Altitude', sfs_speed:'Speed (rel)', sfs_ap:'Apoapsis', sfs_pe:'Periapsis',
       sfs_fuel:'Fuel', sfs_rcs:'RCS', sfs_elec:'Power', sfs_attitude:'Attitude', sfs_time:'Time',
@@ -1760,20 +2029,29 @@ i18n.init({
       sfs_dock_module:'➕ Attach solar panel', sfs_dock_undock:'Undock (G/Space)',
       sfs_bp_save:'💾 Save Blueprint', sfs_bp_load:'📂 Blueprints', sfs_bp_title:'Blueprints', sfs_bp_name:'Blueprint name',
       sfs_bp_default:'My Rocket', sfs_bp_use:'Load', sfs_bp_del:'Del', sfs_bp_export:'Export share code',
-      sfs_bp_import_btn:'Import', sfs_bp_code_ph:'Paste share code…', sfs_bp_empty:'(no saved blueprints yet)', sfs_bp_badcode:'Invalid share code'
+      sfs_bp_import_btn:'Import', sfs_bp_code_ph:'Paste share code…', sfs_bp_empty:'(no saved blueprints yet)', sfs_bp_badcode:'Invalid share code',
+      sfs_ap:'Autopilot', sfs_ap_title:'Autopilot', sfs_ap_active:'Autopilot', sfs_ap_idle:'Standby · pick a mode',
+      sfs_ap_orbit:'🚀 Auto Orbit', sfs_ap_land:'🛬 Auto Land', sfs_ap_off:'✖ Disengage',
+      sfs_ap_ascent:'Ascent (gravity turn)', sfs_ap_coast:'Coast to apoapsis', sfs_ap_circ:'Circularizing',
+      sfs_ap_deorbit:'Deorbit burn', sfs_ap_descent:'Guided descent',
+      sfs_ap_done_orbit:'Orbit achieved — control returned', sfs_ap_done_land:'Touchdown — control returned',
+      sfs_ap_no_fuel:'Out of fuel — autopilot off', sfs_ap_no_engine:'No engine — cannot reach orbit', sfs_ap_off_msg:'Autopilot disengaged',
+      sfs_side_toggle:'⇤ Side ⇥', sfs_sym:'Mirror', sfs_width:'Width',
+      sfs_no_core:'No control core: reduced torque', sfs_thrust_off:'Thrust offset', sfs_no_parts:'Place at least one part first'
     }
   },
   onLang: function(){
     buildBodySel();
     buildPartList();
     renderMissions();
+    updateApPanel();
     if(G.lastBuildStats) updateBuildStats(G.lastBuildStats);
   }
 });
 
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel,toggleChute,unlockMission,MISSIONS,checkMissions,onLanded,crashOverheat};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel,toggleChute,unlockMission,MISSIONS,checkMissions,onLanded,crashOverheat,computeLayout,autopilot,apStartOrbit,apStartLand,apOff,cycleSide,dropTargetAt};
 }
 
 })();

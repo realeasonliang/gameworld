@@ -102,6 +102,19 @@
   #missionPanel .mi .miD { color:#8aa3cc; font-size:11px; margin-top:1px; padding-left:22px; }
   #missionPanel .mi.done .miT { color:#7fffb0; }
   #missionPanel .mi .ic { margin-right:5px; }
+  /* 自动驾驶面板 */
+  #apPanel { position:absolute; right:14px; top:56px; background:rgba(10,18,34,.94);
+    border:1px solid #3a5a8e; border-radius:10px; padding:14px 16px; z-index:30;
+    pointer-events:auto; display:flex; flex-direction:column; gap:9px; min-width:250px;
+    box-shadow:0 10px 34px rgba(0,0,0,.55); }
+  #apPanel h3 { font-size:15px; color:#7fffd4; letter-spacing:2px; }
+  #apStatus { font-size:12.5px; color:#cfe0ff; background:rgba(30,50,90,.5);
+    padding:7px 10px; border-radius:6px; line-height:1.4; }
+  #apPanel .btn { margin-top:2px; }
+  #apTip { font-size:11px; color:#8aa3cc; }
+  /* 建造台：对称按钮激活态 */
+  #symBtn.on { background:linear-gradient(135deg,#2b6cff,#1547c9);
+    box-shadow:0 6px 20px rgba(43,108,255,.4); color:#fff; }
   /* 成就解锁提示 */
   #missionToast { position:absolute; left:50%; top:110px; transform:translateX(-50%);
     background:rgba(16,38,22,.94); color:#7fffb0; border:1px solid #3a7a4e;
