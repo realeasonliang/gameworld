@@ -112,6 +112,11 @@
     padding:7px 10px; border-radius:6px; line-height:1.4; }
   #apPanel .btn { margin-top:2px; }
   #apTip { font-size:11px; color:#8aa3cc; }
+  #apNavRow { display:flex; align-items:center; gap:8px; font-size:12.5px; color:#cfe0ff; }
+  #apNavRow .lb { flex:0 0 auto; color:#7f9fd8; }
+  #apTarget { flex:1; background:#0a1020; color:#cfe0ff; border:1px solid #25365c;
+    border-radius:6px; padding:6px 8px; font-size:12.5px; }
+  #apNavInfo { font-size:11.5px; color:#8aa3cc; line-height:1.4; }
   /* 建造台：对称按钮激活态 */
   #symBtn.on { background:linear-gradient(135deg,#2b6cff,#1547c9);
     box-shadow:0 6px 20px rgba(43,108,255,.4); color:#fff; }

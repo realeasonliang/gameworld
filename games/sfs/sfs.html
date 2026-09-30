@@ -87,6 +87,11 @@
     <label><input type="checkbox" id="ckGod"><span data-i18n="sfs_cheat_god">无敌（永不坠毁）</span></label>
     <label><input type="checkbox" id="ckThrust"><span data-i18n="sfs_cheat_thrust">引擎推力 ×5</span></label>
     <button class="btn sm" id="ckOrbit" data-i18n="sfs_cheat_orbit">🛰 瞬移入轨</button>
+    <div id="apNavRow">
+      <span class="lb" data-i18n="sfs_cheat_tp_target">传送到</span>
+      <select id="ckTarget"></select>
+    </div>
+    <button class="btn sm" id="ckTeleport" data-i18n="sfs_cheat_tp">🌀 立即传送</button>
     <button class="btn alt sm" id="ckClose" data-i18n="sfs_cheat_close">关闭</button>
   </div>
   <!-- 对接后的空间站服务面板 -->
@@ -109,6 +114,12 @@
     <div id="apStatus" data-i18n="sfs_ap_idle">待机 · 选择模式</div>
     <button class="btn sm" id="apOrbit" data-i18n="sfs_ap_orbit">🚀 自动入轨</button>
     <button class="btn sm" id="apLand" data-i18n="sfs_ap_land">🛬 自动着陆</button>
+    <div id="apNavRow">
+      <span class="lb" data-i18n="sfs_nav_target">目标</span>
+      <select id="apTarget"></select>
+    </div>
+    <button class="btn sm" id="apNav" data-i18n="sfs_nav">🛰 自动导航</button>
+    <div id="apNavInfo"></div>
     <button class="btn alt sm" id="apOffBtn" data-i18n="sfs_ap_off">✖ 关闭</button>
     <div id="apTip">按 A / D 手动转向会自动退出</div>
   </div>

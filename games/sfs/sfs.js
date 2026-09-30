@@ -58,7 +58,8 @@ function updateBodies(t){
   STATION.vx = ts.vx + (-Math.sin(ang))*v;
   STATION.vy = ts.vy + ( Math.cos(ang))*v;
 }
-const STATION = { name:'STATION', nameZh:'空间站', nameEn:'Space Station', a:340000, phase:2.2, x:0, y:0, vx:0, vy:0, R:40 };
+const STATION = { name:'STATION', nameZh:'空间站', nameEn:'Space Station', a:340000, phase:2.2,
+  parent:TERRA, mu:0, atmo:0, R:40, x:0, y:0, vx:0, vy:0 };
 
 //==================================================================
 //  零件定义（尺寸单位：米）
@@ -1252,6 +1253,219 @@ function orbitInfo(body){
   return { a, e, ap, pe, escape:false };
 }
 
+// 作弊：传送到任意天体（该天体上方的顺行圆轨道；空间站则贴到站旁）
+function cheatTeleport(name){
+  const sh=G.ship;
+  if(!sh || !sh.alive || (G.state!=='flight' && G.state!=='landed')) return;
+  updateBodies(G.time);
+  if(name==='STATION'){
+    sh.x=G.station.x+260; sh.y=G.station.y;
+    sh.vx=G.station.vx; sh.vy=G.station.vy;
+    sh.angle=Math.atan2(G.station.x-sh.x, -(G.station.y-sh.y));
+    sh.angVel=0; sh.onGround=false; G.docked=false; G.roverDrive=false; sh.heat=0;
+    if(G.state!=='flight') G.state='flight';
+    G.camera.x=sh.x; G.camera.y=sh.y;
+    return;
+  }
+  const b=findBody(name);
+  const mu=b.mu||1;
+  const r=Math.max(b.R*1.15, b.R + (b.atmo||0)*1.2 + 6000);
+  const vc=Math.sqrt(mu/r);
+  const st=bodyState(b, G.time);
+  sh.x=st.x; sh.y=st.y+r;            // 放在天体正上方
+  sh.vx=st.vx-vc; sh.vy=st.vy;       // 顺行（CCW）圆轨道速度
+  sh.angle=0; sh.angVel=0;
+  sh.onGround=false; G.docked=false; G.roverDrive=false; sh.heat=0;
+  if(G.state!=='flight') G.state='flight';
+  G.camera.x=sh.x; G.camera.y=sh.y;
+}
+// 作弊面板：目标下拉（天体 + 空间站）
+function buildCheatTargets(){
+  const sel=document.getElementById('ckTarget'); if(!sel) return;
+  sel.innerHTML='';
+  const list=BODIES.filter(b=>b!==SUN).concat([STATION]);
+  list.forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b.name; o.textContent=bodyName(b);
+    sel.appendChild(o);
+  });
+  if(!G.cheats.target) G.cheats.target=list[0].name;
+  sel.value=G.cheats.target;
+  sel.onchange=()=>{ G.cheats.target=sel.value; };
+}
+
+//==================================================================
+//  自动导航：行星际转移（等相位 → 转移点火 → 巡航中途修正 → 目标捕获）
+//==================================================================
+function navTargets(){ return BODIES.filter(b=>b!==SUN).concat([STATION]); }
+function navFind(name){ return name==='STATION' ? STATION : findBody(name); }
+function navIsStation(t){ return t && t.name==='STATION'; }
+// 影响球（Hill 半径）近似：a·(μ/3μ_parent)^(1/3) —— 用来判断何时转入捕获
+function navSOI(b){
+  if(!b.parent || !b.a) return Math.max(b.R*20, 1e6);
+  return b.a*Math.cbrt(b.mu/(3*b.parent.mu));
+}
+
+// 转移规划：霍曼转移；若起点与目标同级（如泰拉→维斯塔）还要算逃逸剩余速度
+function navPlan(){
+  const sh=G.ship; if(!sh) return null;
+  const origin=dominantBody(sh.x,sh.y)||TERRA;
+  const target=navFind(G.ap.target||'');
+  if(!target || target===origin || target===SUN) return null;
+  let central, r2, escapeOrigin=false;
+  if(navIsStation(target)){ central=TERRA; r2=target.a; }                     // 空间站：绕泰拉的圆轨道
+  else if(target.parent===origin){ central=origin; r2=target.a; }              // 去自己的卫星
+  else if(origin.parent===target){ central=target; r2=target.R*2.2; }          // 回母星
+  else if(origin.parent && target.parent===origin.parent){                     // 同级行星
+    central=origin.parent; r2=target.a; escapeOrigin=true;
+  }
+  else return null;                                                          // 跨星系暂不支持
+  const r1=Math.max(central.R*1.05, Math.hypot(sh.x-central.x, sh.y-central.y));
+  const mu=central.mu;
+  const at=(r1+r2)/2;
+  const v1=Math.sqrt(mu/r1);
+  const vt=Math.sqrt(Math.max(1, mu*(2/r1-1/at)));
+  const tof=Math.PI*Math.sqrt(at*at*at/mu);
+  const vinf=Math.abs(vt-v1);
+  let dv;
+  if(escapeOrigin){
+    const ro=Math.max(origin.R*1.05, Math.hypot(sh.x-origin.x, sh.y-origin.y));
+    const vEsc=Math.sqrt(2*origin.mu/ro);
+    const vNow=Math.hypot(sh.vx-origin.vx, sh.vy-origin.vy);
+    dv=Math.max(0, Math.sqrt(vinf*vinf+vEsc*vEsc)-vNow);
+  } else {
+    const vNow=Math.hypot(sh.vx-central.vx, sh.vy-central.vy);
+    dv=Math.abs(vt-vNow);
+  }
+  return { origin, target, central, r1, r2, mu, at, tof, vinf, dv, dir:(vt>v1?1:-1), escapeOrigin };
+}
+// 目标应领先的角度：π − ω_t·tof；返回归一化到 [-π,π] 的偏差
+function navPhaseErr(p){
+  const sh=G.ship;
+  const om=Math.sqrt(p.mu/(p.r2*p.r2*p.r2));
+  const want=Math.PI-om*p.tof;
+  const aShip=Math.atan2(sh.y-p.central.y, sh.x-p.central.x);
+  const ts=bodyState(p.target, G.time);
+  const aTgt=Math.atan2(ts.y-p.central.y, ts.x-p.central.x);
+  const d=aTgt-aShip-want;
+  return Math.atan2(Math.sin(d), Math.cos(d));
+}
+// 逃逸点火窗口：飞船绕起点的速度方向要与起点公转方向（顺/逆）一致
+function navAlignOK(p){
+  if(!p.escapeOrigin) return true;
+  const sh=G.ship;
+  const oe=p.dir>0?1:-1;
+  const odx=oe*(p.origin.vx-p.central.vx), ody=oe*(p.origin.vy-p.central.vy);
+  const ol=Math.hypot(odx,ody)||1;
+  const rvx=sh.vx-p.origin.vx, rvy=sh.vy-p.origin.vy;
+  const rl=Math.hypot(rvx,rvy)||1;
+  return (rvx*odx+rvy*ody)/(ol*rl) > 0.95;
+}
+// 轨迹预测（天体按解析轨道同步推进，比固定天体准确得多）→ 与目标的最近距离
+function navPredict(tgt, x0,y0,vx0,vy0, steps, dt){
+  let x=x0,y=y0,vx=vx0,vy=vy0,t=G.time;
+  let best=Infinity, bestT=0;
+  for(let i=0;i<steps;i++){
+    let ax=0, ay=0;
+    for(const b of BODIES){
+      const bs=bodyState(b,t);
+      const dx=bs.x-x, dy=bs.y-y;
+      let r2=dx*dx+dy*dy; if(r2<1) r2=1;
+      const r=Math.sqrt(r2); const a=b.mu/r2;
+      ax+=a*dx/r; ay+=a*dy/r;
+    }
+    vx+=ax*dt; vy+=ay*dt; x+=vx*dt; y+=vy*dt; t+=dt;
+    const ts=bodyState(tgt,t);
+    const d=Math.hypot(x-ts.x, y-ts.y);
+    if(d<best){ best=d; bestT=i*dt; }
+  }
+  return { miss:best, t:bestT };
+}
+// 打靶求解：在解析霍曼解附近网格搜索「点火大小 + 少量径向分量」，
+// 用带天体运动的预测器挑最近距离最小的方案（N 体下比纯解析解准得多）
+function navSolveBurn(p){
+  const sh=G.ship, tgt=p.target, c=p.central;
+  const dt=Math.max(4, p.tof/120);
+  const steps=Math.min(700, Math.max(300, Math.ceil(p.tof*1.2/dt)));
+  // 基准方向：逃逸时沿「绕起点」的顺行方向，否则沿中心天体顺/逆行
+  let base;
+  if(p.escapeOrigin){
+    const rvx=sh.vx-p.origin.vx, rvy=sh.vy-p.origin.vy;
+    const rl=Math.hypot(rvx,rvy)||1; base={x:rvx/rl, y:rvy/rl};
+  } else {
+    const cvx=sh.vx-c.vx, cvy=sh.vy-c.vy; const cl=Math.hypot(cvx,cvy)||1;
+    const s=p.dir>0?1:-1; base={x:s*cvx/cl, y:s*cvy/cl};
+  }
+  const rx=sh.x-c.x, ry=sh.y-c.y; const rl2=Math.hypot(rx,ry)||1;
+  const rad={x:rx/rl2, y:ry/rl2};
+  let best={ dv:p.dv, dir:base, miss:Infinity };
+  const scales=p.escapeOrigin?[0.5,0.7,0.85,1.0,1.15,1.35]:[0.6,0.8,0.9,1.0,1.1,1.25];
+  const rads=[-0.12,-0.04,0,0.04,0.12];
+  for(const k of scales){
+    for(const r of rads){
+      const m=p.dv*k;
+      const dx=base.x*m+rad.x*m*r, dy=base.y*m+rad.y*m*r;
+      const miss=navPredict(tgt, sh.x,sh.y, sh.vx+dx, sh.vy+dy, steps, dt).miss;
+      if(miss<best.miss){
+        const l=Math.hypot(dx,dy)||1;
+        best={ dv:l, dir:{x:dx/l, y:dy/l}, miss };
+      }
+    }
+  }
+  return best;
+}
+// 中途修正：枚举几个小 Δv（顺行/逆行/径向外/径向内），挑让最近距离最小的
+function navCorrect(p){
+  const sh=G.ship, tgt=p.target, c=p.central;
+  const dt=Math.max(2, p.tof/140);
+  const steps=Math.min(1500, Math.max(400, Math.ceil(p.tof*1.15/dt)));
+  const base=navPredict(tgt, sh.x,sh.y, sh.vx,sh.vy, steps, dt);
+  if(!isFinite(base.miss)) return false;
+  if(base.miss < tgt.R*3+(tgt.atmo||0)) return false;         // 已经够准
+  if((G.ap.navFix||0)>=8) return false;                       // 修正次数上限，避免无限烧油
+  const rx=sh.x-c.x, ry=sh.y-c.y; const rl=Math.hypot(rx,ry)||1;
+  const rvx=sh.vx-c.vx, rvy=sh.vy-c.vy; const vl=Math.hypot(rvx,rvy)||1;
+  const pro={x:rvx/vl, y:rvy/vl};
+  const dirs=[ {x:pro.x,y:pro.y}, {x:-pro.x,y:-pro.y}, {x:rx/rl, y:ry/rl}, {x:-rx/rl, y:-ry/rl} ];
+  const mags=[8, 25, 60];
+  let bestMiss=base.miss, dvBest=0, dirBest=null;
+  for(const m of mags){
+    for(const d of dirs){
+      const miss=navPredict(tgt, sh.x,sh.y, sh.vx+d.x*m, sh.vy+d.y*m, steps, dt).miss;
+      if(miss < bestMiss*0.92){ bestMiss=miss; dvBest=m; dirBest=d; }
+    }
+  }
+  if(!dirBest) return false;
+  G.ap.burn={ dir:{x:dirBest.x, y:dirBest.y}, dvNeed:dvBest, dvDone:0 };
+  G.ap.mode='NAV_BURN'; G.ap.phase='sfs_nav_correct'; G.ap.next='NAV_CRUISE';
+  G.ap.navFix=(G.ap.navFix||0)+1;
+  return true;
+}
+// 导航期间自动时间加速（等相位/长巡航时很有必要）
+function apAutoWarp(idx){ if(G.warpIdx!==idx){ G.warpIdx=idx; G.warp=G.WARPS[idx]; } }
+function apWarpStop(){ G.warpIdx=0; G.warp=1; }
+
+function navStart(){
+  const sh=G.ship; if(!sh||!sh.alive) return;
+  if(!G.ap.target){ G.ap={mode:'OFF', phase:'sfs_nav_no_target', targetAlt:0}; updateApPanel(); return; }
+  const p0=navPlan();
+  const origin=p0? p0.origin : (dominantBody(sh.x,sh.y)||TERRA);
+  G.ap.origin=origin.name;
+  G.ap.after='NAV_WAIT';
+  G.ap.navFix=0; G.ap.navTimer=0;
+  const o=orbitInfo(origin);
+  const inOrbit = o && !o.escape && o.pe>0;
+  if(inOrbit){
+    G.ap.mode='NAV_WAIT'; G.ap.phase='sfs_nav_wait';
+  } else if(sh.thrust>0){
+    // 还没入轨 → 先跑上升程序，圆化后自动接上转移
+    G.ap.mode='ASCENT'; G.ap.phase='sfs_ap_ascent'; G.ap.targetAlt=apTargetAlt(origin);
+  } else {
+    G.ap={mode:'OFF', phase:'sfs_ap_no_engine', targetAlt:0};
+  }
+  updateApPanel();
+}
+
 //==================================================================
 //  轨迹预测（无推力，天体位置固定）
 //==================================================================
@@ -1571,12 +1785,19 @@ document.getElementById('ckFuel').addEventListener('change',e=>{
 document.getElementById('ckGod').addEventListener('change',e=>{ G.cheats.god=e.target.checked; });
 document.getElementById('ckThrust').addEventListener('change',e=>{ G.cheats.thrust=e.target.checked; });
 document.getElementById('ckOrbit').onclick=cheatOrbit;
+document.getElementById('ckTeleport').onclick=()=>cheatTeleport(G.cheats.target||'TERRA');
+buildCheatTargets();
 
 //==================================================================
 //  自动驾驶：自动入轨（重力转弯+远地点圆化）/ 自动着陆（刹车+制导下降）
 //==================================================================
 // cut=true 时同时收油门（正常完成/退出时用，避免着陆后残余推力又把自己顶起来）
-function apOff(msg, cut){ G.ap={ mode:'OFF', phase:msg||'', targetAlt:0 }; if(cut) G.throttle=0; updateApPanel(); }
+function apOff(msg, cut){
+  G.ap={ mode:'OFF', phase:msg||'', targetAlt:0, target:G.ap.target };
+  if(cut) G.throttle=0;
+  apWarpStop();
+  updateApPanel();
+}
 // 目标轨道高度：有大气取大气层顶再高一点，无大气按半径比例
 function apTargetAlt(dom){ return (dom.atmo||0)>0 ? dom.atmo*1.4+4000 : dom.R*0.06+4000; }
 function apStartOrbit(){
@@ -1635,21 +1856,50 @@ function autopilot(dt){
       const tilt=(Math.PI/2)*Math.pow(t,0.75)*0.92;
       const dir={x:up.x*Math.cos(tilt)+east.x*Math.sin(tilt), y:up.y*Math.cos(tilt)+east.y*Math.sin(tilt)};
       apSteer(apAngleTo(dir.x,dir.y), dt);
-      G.throttle = (o.escape || o.ap>=G.ap.targetAlt) ? 0 : 1;
-      if(G.throttle===0){ G.ap.mode='COAST'; G.ap.phase='sfs_ap_coast'; }
+      // 远地点达标就关机滑行，到远地点再圆化（最省燃料）；
+      // 若远地点冲太高也先关机，避免越推越高
+      const overshoot = !o.escape && o.ap > G.ap.targetAlt*2.2;
+      if(!o.escape && o.ap>=G.ap.targetAlt){
+        G.throttle=0; G.ap.mode='COAST'; G.ap.phase='sfs_ap_coast'; break;
+      }
+      if(overshoot){ G.throttle=0; G.ap.mode='COAST'; G.ap.phase='sfs_ap_coast'; break; }
+      G.throttle=1;
       break;
     }
     case 'COAST': {
       apSteer(apAngleTo(pro.x,pro.y), dt);
       G.throttle=0;
-      if(vert<25 || alt>G.ap.targetAlt*0.97){ G.ap.mode='CIRC'; G.ap.phase='sfs_ap_circ'; }
+      // 只在真正接近远地点时才转圆化（否则会把远地点越推越高）
+      if(vert<30 || alt>G.ap.targetAlt*2){ G.ap.mode='CIRC'; G.ap.phase='sfs_ap_circ'; }
       break;
     }
     case 'CIRC': {
       apSteer(apAngleTo(pro.x,pro.y), dt);
-      const need=(dom.atmo||0)*0.85+2000;
-      G.throttle = (!o.escape && o.pe>=need) ? 0 : 1;
-      if(G.throttle===0) apOff('sfs_ap_done_orbit', true);
+      // 以远地点为中心点火：按「还差多少 Δv」估算点火时长，提前半个时长开机，
+      // 这样推力对半分在远地点两侧，远地点不会被一路推高
+      const need=(dom.atmo||0)*1.15+3000;
+      const done = (!o.escape && o.pe>=need);
+      let burn=false;
+      if(!done){
+        const gLoc=dom.mu/Math.max(1, rl*rl);
+        const vNow=Math.hypot(rvx,rvy);
+        const vCirc=Math.sqrt(dom.mu/Math.max(1,rl));
+        const accel=sh.thrust>0 ? sh.thrust/Math.max(1, sh.dry+sh.fuel) : 0.001;
+        const tBurn=Math.max(0, vCirc-vNow)/accel;
+        const tToAp= vert>0 ? vert/Math.max(0.01,gLoc) : -1;
+        // 注意：近地点的径向速度同样是 0，必须区分远近点，否则会在近地点点火（只会抬高远地点）
+        const nearApo = !o.escape && Math.abs(alt-o.ap) <= Math.abs(alt-o.pe);
+        burn = nearApo && ((vert<=0 && Math.abs(vert)<250) || (vert>0 && tToAp < tBurn*0.55+2));
+        if(!o.escape && o.ap > G.ap.targetAlt*4) burn=false;    // 失控保护
+      }
+      G.throttle = (done || !burn) ? 0 : 1;
+      if(done){
+        if(G.ap.after==='NAV_WAIT'){       // 入轨后接着执行行星际转移
+          G.ap.after='';
+          G.ap.mode='NAV_WAIT'; G.ap.phase='sfs_nav_wait';
+          updateApPanel();
+        } else apOff('sfs_ap_done_orbit', true);
+      }
       break;
     }
     case 'DEORBIT': {
@@ -1689,6 +1939,137 @@ function autopilot(dt){
       if(sh.onGround) apOff('sfs_ap_done_land', true);
       break;
     }
+    // ---- 自动导航：行星际转移 ----
+    case 'NAV_WAIT': {
+      const p=navPlan();
+      const tgt0=navFind(G.ap.target);
+      // 已经处在目标天体的主导范围内 → 直接进入捕获刹车（此时 navPlan 会因 origin===target 返回 null）
+      if(tgt0 && !navIsStation(tgt0) && dominantBody(sh.x,sh.y)===tgt0){
+        apWarpStop(); G.ap.mode='NAV_CAPTURE'; G.ap.phase='sfs_nav_capture'; G.ap.capT=0; break;
+      }
+      if(!p){ apWarpStop(); apOff('sfs_nav_unsupported', true); return; }
+      // 站位保持：等待期间近地点被引潮力拖低时，先补回安全高度再继续等窗口
+      const oo=orbitInfo(p.origin);
+      const safePe=(p.origin.atmo||0)*1.15+3000;     // 近地点低于安全值就先补回来（本作高轨道会被引潮力拖衰减）
+      if(!oo.escape && oo.pe < safePe*0.95 && sh.fuel>0 && sh.thrust>0){
+        G.ap.after='NAV_WAIT';
+        G.ap.mode='CIRC'; G.ap.phase='sfs_ap_circ';
+        G.ap.targetAlt=apTargetAlt(p.origin);
+        break;
+      }
+      G.throttle=0;
+      // 保持绕中心天体的顺行姿态
+      const cvx=sh.vx-p.central.vx, cvy=sh.vy-p.central.vy;
+      const cl=Math.hypot(cvx,cvy)||1;
+      apSteer(apAngleTo(cvx/cl, cvy/cl), dt);
+      // 关键：不靠解析相位角，而是每隔一段时间用打靶预测「现在点火能打多近」，
+      // 足够近就立刻走（解析霍曼在 N 体下误差可达数百万公里）
+      // 本作高轨道会被引潮力快速拖衰减（实测 20km 圆轨道约 500s 近地点就掉进大气层），
+      // 所以不能久等相位窗口：只要打靶预测够好就立刻走，剩下的误差交给巡航修正 + 末端接近
+      G.ap.navTimer=(G.ap.navTimer||0)+dt;
+      const waited=(G.ap.navWait=(G.ap.navWait||0)+dt);
+      const waitTooLong= waited > 3000;
+      if(navAlignOK(p) && (G.ap.navTimer>150 || waitTooLong)){
+        G.ap.navTimer=0;
+        const sol=navSolveBurn(p);
+        // 误差阈值按「距离的比例」放宽：剩下的差距由巡航修正 + 末端接近来补
+        const dNow=Math.hypot(sh.x-p.target.x, sh.y-p.target.y);
+        const okMiss=Math.max(navSOI(p.target)*3, dNow*0.15);
+        if(sol.miss<okMiss || waitTooLong){
+          apWarpStop();
+          G.ap.burn={ dir:sol.dir, dvNeed:sol.dv, dvDone:0 };
+          G.ap.mode='NAV_BURN'; G.ap.phase='sfs_nav_burn'; G.ap.next='NAV_CRUISE';
+          break;
+        }
+      }
+      apAutoWarp(6);   // 等窗口时开满时间加速（×1000）
+      break;
+    }
+    case 'NAV_BURN': {
+      const b=G.ap.burn;
+      if(!b){ G.ap.mode='NAV_CRUISE'; G.ap.phase='sfs_nav_cruise'; break; }
+      apSteer(apAngleTo(b.dir.x,b.dir.y), dt);
+      const mass=Math.max(1, sh.dry+sh.fuel);
+      const burning = (sh.fuel>0 && sh.thrust>0);
+      G.throttle = burning ? 1 : 0;
+      if(burning) b.dvDone += (sh.thrust*(G.cheats.thrust?5:1)/mass)*dt;
+      if(b.dvDone>=b.dvNeed || !burning){
+        G.throttle=0;
+        G.ap.mode=b.next||'NAV_CRUISE';
+        G.ap.phase=(b.next==='NAV_WAIT')?'sfs_nav_wait':'sfs_nav_cruise';
+      }
+      break;
+    }
+    case 'NAV_CRUISE': {
+      const p=navPlan();
+      const tgt0=navFind(G.ap.target);
+      if(tgt0 && !navIsStation(tgt0) && dominantBody(sh.x,sh.y)===tgt0){
+        apWarpStop(); G.ap.mode='NAV_CAPTURE'; G.ap.phase='sfs_nav_capture'; G.ap.capT=0; break;
+      }
+      if(!p){ apWarpStop(); apOff('sfs_nav_unsupported', true); return; }
+      const tgt=p.target;
+      const d=Math.hypot(sh.x-tgt.x, sh.y-tgt.y);
+      // 靠近目标后转入「追踪式接近」：先把相对速度压下来，再朝目标慢慢靠
+      const apprR=Math.max(navSOI(tgt)*4, tgt.R*20);
+      if(d < apprR){
+        apWarpStop();
+        G.ap.mode='NAV_APPROACH'; G.ap.phase='sfs_nav_approach'; break;
+      }
+      // 进入目标影响球 → 转入捕获刹车
+      if(d < Math.max(navSOI(tgt)*0.75, tgt.R*4)){
+        apWarpStop();
+        G.ap.mode='NAV_CAPTURE'; G.ap.phase='sfs_nav_capture'; G.ap.capT=0; break;
+      }
+      G.throttle=0;
+      G.ap.navTimer=(G.ap.navTimer||0)+dt;
+      if(G.ap.navTimer>250){                 // 每 250 秒评估一次中途修正
+        G.ap.navTimer=0;
+        if(navCorrect(p)) break;             // 进入修正点火
+      }
+      apAutoWarp(6);                         // 巡航 ×200
+      break;
+    }
+    case 'NAV_CAPTURE': {
+      const tgt=findBody(G.ap.target);
+      if(!tgt){ apWarpStop(); apOff('sfs_ap_off_msg', true); return; }
+      const d=Math.hypot(sh.x-tgt.x, sh.y-tgt.y);
+      const rvx=sh.vx-tgt.vx, rvy=sh.vy-tgt.vy;
+      const sp=Math.hypot(rvx,rvy)||1;
+      const oi=orbitInfo(tgt);
+      G.ap.capT=(G.ap.capT||0)+dt;
+      // 捕获成功：闭合轨道且远地点落进影响球内侧
+      const captured = oi && !oi.escape && oi.ap < Math.max(tgt.R*4, navSOI(tgt)*0.35);
+      // 长时间刹不下来（燃料/推力不够）就交还操控
+      if(captured || sh.fuel<=0 || G.ap.capT>4000 || d < tgt.R+(tgt.atmo||0)*0.6){
+        G.throttle=0; apWarpStop();
+        apOff(captured?'sfs_nav_arrived':'sfs_nav_approach', true);
+        break;
+      }
+      // 逆行刹车降低相对速度
+      apSteer(apAngleTo(-rvx/sp, -rvy/sp), dt);
+      G.throttle=1;
+      break;
+    }
+    case 'NAV_APPROACH': {
+      const tgt=navFind(G.ap.target);
+      if(!tgt){ apWarpStop(); apOff('sfs_ap_off_msg', true); return; }
+      const st=tgt;                                   // 目标（空间站或天体）
+      const dx=st.x-sh.x, dy=st.y-sh.y; const dist=Math.hypot(dx,dy)||1;
+      const rvx=sh.vx-st.vx, rvy=sh.vy-st.vy; const rel=Math.hypot(rvx,rvy)||1;
+      if(G.docked){ G.throttle=0; apWarpStop(); apOff('sfs_nav_docked', true); break; }
+      // 到达判据：空间站要贴得很近且几乎静止；天体只要进入低空且速度可控
+      const arrived = navIsStation(tgt)
+        ? (dist<120 && rel<6)
+        : (dist < tgt.R*2.5+1500 && rel < 70);
+      if(arrived){ G.throttle=0; apWarpStop(); apOff(navIsStation(tgt)?'sfs_nav_near_station':'sfs_nav_arrived', true); break; }
+      // 受控接近：速度上限随距离缩小；贴到目标附近时无条件刹车，避免直接撞上去
+      const cap=navIsStation(tgt)?70:280;
+      const want=Math.min(cap, Math.max(8, dist*0.02));
+      const danger=!navIsStation(tgt) && dist < tgt.R*3+3000 && rel > 55;
+      if(danger || rel>want*1.15){ apSteer(apAngleTo(-rvx/rel, -rvy/rel), dt); G.throttle=1; }
+      else { apSteer(apAngleTo(dx/dist, dy/dist), dt); G.throttle = (rel<want*0.75) ? 0.3 : 0; }
+      break;
+    }
     default: G.throttle=G.throttle;
   }
 }
@@ -1698,6 +2079,7 @@ function updateApPanel(){
   st.textContent = (G.ap.mode==='OFF')
     ? (G.ap.phase ? i18n.t(G.ap.phase) : i18n.t('sfs_ap_idle'))
     : i18n.t('sfs_ap_active')+'：'+i18n.t(G.ap.phase||'sfs_ap_idle');
+  updateNavInfo();
 }
 function toggleApPanel(){
   document.getElementById('apPanel').classList.toggle('hidden');
@@ -1706,7 +2088,30 @@ function toggleApPanel(){
 document.getElementById('apBtn').onclick=toggleApPanel;
 document.getElementById('apOrbit').onclick=apStartOrbit;
 document.getElementById('apLand').onclick=apStartLand;
-document.getElementById('apOffBtn').onclick=()=>apOff('sfs_ap_off_msg');
+document.getElementById('apOffBtn').onclick=()=>apOff('sfs_ap_off_msg', true);
+document.getElementById('apNav').onclick=navStart;
+// 目标天体下拉 + 转移估算
+function updateNavInfo(){
+  const el=document.getElementById('apNavInfo'); if(!el) return;
+  const p=(G.ship && G.ship.alive) ? navPlan() : null;
+  if(!p){ el.textContent=i18n.t('sfs_nav_unsupported'); return; }
+  el.textContent=i18n.t('sfs_nav_dv')+' ≈ '+fmt(p.dv)+' m/s · '+i18n.t('sfs_nav_tof')+' ≈ '+formatTime(p.tof);
+}
+function buildNavTargets(){
+  const sel=document.getElementById('apTarget'); if(!sel) return;
+  const keep=G.ap.target;
+  sel.innerHTML='';
+  navTargets().forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b.name; o.textContent=bodyName(b);
+    sel.appendChild(o);
+  });
+  if(keep && navTargets().some(b=>b.name===keep)) sel.value=keep;
+  G.ap.target=sel.value||(navTargets()[0]&&navTargets()[0].name);
+  sel.onchange=()=>{ G.ap.target=sel.value; updateNavInfo(); };
+  updateNavInfo();
+}
+buildNavTargets();
 
 //==================================================================
 //  任务 / 成就系统（localStorage 持久化）
@@ -1999,6 +2404,13 @@ i18n.init({
       sfs_ap_done_orbit:'入轨完成，已交还操控', sfs_ap_done_land:'着陆完成，已交还操控',
       sfs_ap_no_fuel:'燃料耗尽，自动驾驶退出', sfs_ap_no_engine:'没有引擎，无法自动入轨', sfs_ap_off_msg:'自动驾驶已关闭',
       sfs_side_toggle:'⇤ 侧挂 ⇥', sfs_sym:'对称', sfs_width:'宽度',
+      sfs_nav:'🛰 自动导航', sfs_nav_target:'目标', sfs_nav_dv:'转移 Δv', sfs_nav_tof:'飞行时间',
+      sfs_nav_wait:'等待转移窗口', sfs_nav_burn:'转移点火', sfs_nav_cruise:'巡航中',
+      sfs_nav_correct:'中途修正', sfs_nav_capture:'捕获刹车',
+      sfs_nav_arrived:'已抵达目标轨道', sfs_nav_approach:'已进入目标引力范围，请手动着陆',
+      sfs_nav_unsupported:'该航线暂不支持（需同系统天体）', sfs_nav_no_target:'请先选择目标天体',
+      sfs_nav_approach:'接近空间站', sfs_nav_near_station:'已抵达空间站旁', sfs_nav_docked:'对接完成',
+      sfs_cheat_tp:'🌀 立即传送', sfs_cheat_tp_target:'传送到',
       sfs_no_core:'无控制核心：转动力矩较低', sfs_thrust_off:'推力偏置', sfs_no_parts:'请先放置至少一个零件'
     },
     en: {
@@ -2037,6 +2449,13 @@ i18n.init({
       sfs_ap_done_orbit:'Orbit achieved — control returned', sfs_ap_done_land:'Touchdown — control returned',
       sfs_ap_no_fuel:'Out of fuel — autopilot off', sfs_ap_no_engine:'No engine — cannot reach orbit', sfs_ap_off_msg:'Autopilot disengaged',
       sfs_side_toggle:'⇤ Side ⇥', sfs_sym:'Mirror', sfs_width:'Width',
+      sfs_nav:'🛰 Auto Navigate', sfs_nav_target:'Target', sfs_nav_dv:'Transfer Δv', sfs_nav_tof:'Flight time',
+      sfs_nav_wait:'Waiting for transfer window', sfs_nav_burn:'Transfer burn', sfs_nav_cruise:'Cruising',
+      sfs_nav_correct:'Mid-course correction', sfs_nav_capture:'Capture burn',
+      sfs_nav_arrived:'Arrived in target orbit', sfs_nav_approach:'In target sphere — land manually',
+      sfs_nav_unsupported:'Route not supported (same system required)', sfs_nav_no_target:'Pick a target body first',
+      sfs_nav_approach:'Approaching station', sfs_nav_near_station:'Station reached', sfs_nav_docked:'Docked',
+      sfs_cheat_tp:'🌀 Teleport now', sfs_cheat_tp_target:'To',
       sfs_no_core:'No control core: reduced torque', sfs_thrust_off:'Thrust offset', sfs_no_parts:'Place at least one part first'
     }
   },
@@ -2044,6 +2463,8 @@ i18n.init({
     buildBodySel();
     buildPartList();
     renderMissions();
+    if(typeof buildNavTargets==='function') buildNavTargets();
+    if(typeof buildCheatTargets==='function') buildCheatTargets();
     updateApPanel();
     if(G.lastBuildStats) updateBuildStats(G.lastBuildStats);
   }
@@ -2051,7 +2472,9 @@ i18n.init({
 
 // 测试钩子（供自动化冒烟测试调用）
 if(typeof globalThis!=='undefined'){
-  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel,toggleChute,unlockMission,MISSIONS,checkMissions,onLanded,crashOverheat,computeLayout,autopilot,apStartOrbit,apStartLand,apOff,cycleSide,dropTargetAt};
+  globalThis.__t={G,startFlight,physicsStep,orbitInfo,predictPath,render,gravityAt,stage,checkDock,dominantBody,updateBodies,rocketStats,BODIES,findBody,keys,loop,updateHUD,addPart,flipSel,buildPartRects,insertIndexAt,drawBuild,bodyName,partName,cheatOrbit,toggleCheatPanel,toggleChute,unlockMission,MISSIONS,checkMissions,onLanded,crashOverheat,computeLayout,autopilot,apStartOrbit,apStartLand,apOff,cycleSide,dropTargetAt,
+    navPlan,navStart,navPredict,navCorrect,navPhaseErr,navAlignOK,navTargets,navFind,navIsStation,
+    apAutoWarp,apWarpStop,cheatTeleport};
 }
 
 })();
