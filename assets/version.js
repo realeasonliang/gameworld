@@ -16,7 +16,7 @@
 window.GW_VERSION = {
   site:      '1.0.0',      // 网站整体版本
   updated:   '2026-10-03', // 最后更新日期
-  commit:    '520fd91',    // 对应的 git 短 hash（bump 脚本自动填）
+  commit:    '28d990b',    // 对应的 git 短 hash（bump 脚本自动填）
   games: {
     sfs:       '1.3.0',    // 航天模拟器
     minecraft: '2.0.0',    // 方块世界
