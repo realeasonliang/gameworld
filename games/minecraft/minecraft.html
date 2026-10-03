@@ -53,6 +53,26 @@
   .sbtn { background:rgba(255,255,255,.12); color:#fff; border:2px solid rgba(255,255,255,.35);
     border-radius:10px; padding:11px 22px; font-size:15px; cursor:pointer; font-family:inherit; transition:.15s; }
   .sbtn:hover { background:rgba(120,200,255,.25); border-color:#9fd0ff; }
+  /* 模式选择按钮 */
+  .modebtns { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .btn.survival { background:linear-gradient(180deg,#e8894a,#b2562a); border-color:#7c3a1c; }
+  .btn.survival:hover { box-shadow:0 0 22px rgba(232,137,74,.6); }
+  .btn.creative { background:linear-gradient(180deg,#7ad17a,#3f9b4f); border-color:#2c6b35; }
+  .btn.creative:hover { box-shadow:0 0 22px rgba(122,209,122,.6); }
+  .btn.small { font-size:17px; padding:11px 30px; }
+  /* 生存数值条（生命 / 饱食度） */
+  #bars { position:fixed; left:14px; bottom:16px; z-index:6; display:none; user-select:none; pointer-events:none; }
+  .barRow { display:flex; gap:2px; margin-bottom:2px; }
+  .pip { font-size:20px; line-height:20px; text-shadow:0 2px 0 rgba(0,0,0,.55); }
+  .pip.hp.f { color:#ff4d4d; }  .pip.hp.h { color:#a32c2c; }  .pip.hp.e { color:#521818; }
+  .pip.fd.e { filter:grayscale(1) brightness(.4); opacity:.45; }
+  #foodCount { margin-top:5px; font-size:13px; color:#ffd08a; text-shadow:1px 1px 0 #000; }
+  #flyHint { font-size:12px; color:#9fffd0; text-shadow:1px 1px 0 #000; margin-top:3px; }
+  /* 当前模式标记（避开右上角 i18n 语言按钮） */
+  #modeTag { position:fixed; right:14px; top:54px; z-index:6; color:#fff; font-size:13px; letter-spacing:1px;
+    background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.22); border-radius:20px;
+    padding:6px 14px; text-shadow:1px 1px 0 #000; display:none; }
+  #death-ov h1 { color:#ff6b6b; text-shadow:0 4px 0 #000, 0 0 26px rgba(255,80,80,.6); }
 </style>
 </head>
 <body>
@@ -60,6 +80,12 @@
 <div id="crosshair"></div>
 <div id="hud"></div>
 <div id="hotbar"></div>
+<div id="bars">
+  <div class="barRow" id="hpRow"></div>
+  <div class="barRow" id="fdRow"></div>
+  <div id="foodCount"></div>
+</div>
+<div id="modeTag"></div>
 
 <div id="start-ov" class="overlay">
   <h1 data-i18n="mc_title">方块世界</h1>
@@ -72,8 +98,11 @@
     💾 <b>ESC</b> 暂停可保存 / 读取存档，进度自动存在本地，关闭页面前也会自动保存。<br>
     🌍 程序生成的无限地形，自由建造你的世界！
   </div>
-  <button class="btn" id="start-btn" data-i18n="mc_new">开始新游戏</button>
-  <button class="btn" id="continue-btn" style="display:none; margin-top:14px; background:linear-gradient(180deg,#7ad17a,#3f9b4f); border-color:#2c6b35;" data-i18n="mc_continue">继续游戏（读取存档）</button>
+  <div class="modebtns">
+    <button class="btn survival" id="start-survival" data-i18n="mc_new_survival">⚔️ 生存模式</button>
+    <button class="btn creative" id="start-creative" data-i18n="mc_new_creative">🏗️ 创造模式</button>
+  </div>
+  <button class="btn small" id="continue-btn" style="display:none; margin-top:16px; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.4);" data-i18n="mc_continue">继续游戏（读取存档）</button>
 </div>
 
 <div id="pause-ov" class="overlay">
@@ -88,6 +117,12 @@
   <input type="file" id="file-in" accept="application/json" style="display:none">
 </div>
 
+<div id="death-ov" class="overlay" style="display:none">
+  <h1 data-i18n="mc_dead">你死了！</h1>
+  <div class="tag" data-i18n="mc_dead_tip">血量耗尽 · 点击下面的按钮复活</div>
+  <button class="btn" id="btn-respawn" data-i18n="mc_respawn">重生</button>
+</div>
+
 <div id="toast"></div>
 
 <script src="../../assets/i18n.js"></script>
@@ -95,11 +130,30 @@
 // ===================== 配置 =====================
 const CW = 8, Y = 22, RENDER_DIST = 5;   // 分块尺寸 / 世界高度 / 渲染距离（方块）
 const AIR=0, GRASS=1, DIRT=2, STONE=3, WOOD=4, LEAVES=5, SAND=6, PLANK=7, GLASS=8, BEDROCK=9;
-// 热键栏（可放置的方块）
+// 热键栏（可放置的方块）；第 9 格固定为「肉排」，见 SLOT_FOOD
 const HOTBAR = [GRASS, DIRT, STONE, WOOD, LEAVES, SAND, PLANK, GLASS];
+const SLOT_FOOD = 8;                     // 热键栏索引 8 = 第 9 格 = 肉排（选中后右键食用）
+const SLOT_COUNT = HOTBAR.length + 1;
 const BLOCK_NAME = {1:'草地',2:'泥土',3:'石头',4:'木头',5:'树叶',6:'沙子',7:'木板',8:'玻璃',9:'基岩'};
 const BLOCK_NAME_EN = {1:'Grass',2:'Dirt',3:'Stone',4:'Wood',5:'Leaves',6:'Sand',7:'Plank',8:'Glass',9:'Bedrock'};
 function blockName(id){ return i18n.lang==='zh' ? (BLOCK_NAME[id]||(''+id)) : (BLOCK_NAME_EN[id]||(''+id)); }
+
+// ===================== 游戏模式 =====================
+const SURVIVAL='survival', CREATIVE='creative';
+let mode = SURVIVAL;
+function isCreative(){ return mode===CREATIVE; }
+function isSurvival(){ return mode===SURVIVAL; }
+// 生存数值上限：玩家 20 点血（10 颗心）/ 20 点饱食度（10 个鸡腿）；动物 5 点血
+const MAX_HP = 20, MAX_FOOD = 20, MOB_HP = 5;
+const PUNCH_DMG = 1;                     // 空手每拳伤害 → 5 拳打死一只牛羊
+const REACH_SURVIVAL = 6, REACH_CREATIVE = 8;   // 挖掘 / 放置距离（创造模式更远）
+function reachDist(){ return isCreative() ? REACH_CREATIVE : REACH_SURVIVAL; }
+// 肉排背包：牛排 / 羊排分开计数
+const inv = { beef:0, lamb:0 };
+function foodTotal(){ return inv.beef + inv.lamb; }
+// 食用效果：牛排 饱食+8 生命+4；羊排 饱食+6 生命+3
+const FOOD_VALUE = { beef:{ food:8, hp:4 }, lamb:{ food:6, hp:3 } };
+let dead = false;
 
 // ===================== 世界数据（分块无限地形） =====================
 const loadedChunks = new Map();            // 'cx,cz' -> chunk
@@ -415,6 +469,7 @@ function mMul(a,b){
 }
 function mTrans(x,y,z){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]; }
 function mRotY(a){ const c=Math.cos(a), s=Math.sin(a); return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; }
+function mScale(x,y,z){ return [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]; }
 
 // --- 方块硬度（左键持续挖掘的耗时，秒） ---
 const HARDNESS = { [GRASS]:0.5,[DIRT]:0.5,[SAND]:0.5,[LEAVES]:0.25,[GLASS]:0.3,[WOOD]:0.8,[PLANK]:0.8,[STONE]:1.6,[BEDROCK]:1e9 };
@@ -469,6 +524,15 @@ const MOB_DEFS = {
     {x:0.35,y:0.225,z:0.35, sx:0.15,sy:0.45,sz:0.15, r:0.3,g:0.3,b:0.32},
     {x:-0.35,y:0.225,z:-0.35, sx:0.15,sy:0.45,sz:0.15, r:0.3,g:0.3,b:0.32},
     {x:0.35,y:0.225,z:-0.35, sx:0.15,sy:0.45,sz:0.15, r:0.3,g:0.3,b:0.32}
+  ],
+  // 掉落物（牛排 / 羊排）
+  beef:[
+    {x:0,y:0.5,z:0, sx:0.82,sy:0.34,sz:0.62, r:0.62,g:0.26,b:0.20},
+    {x:0,y:0.72,z:0, sx:0.74,sy:0.10,sz:0.54, r:0.80,g:0.40,b:0.32}
+  ],
+  lamb:[
+    {x:0,y:0.5,z:0, sx:0.82,sy:0.34,sz:0.62, r:0.84,g:0.50,b:0.44},
+    {x:0,y:0.72,z:0, sx:0.74,sy:0.10,sz:0.54, r:0.94,g:0.70,b:0.64}
   ]
 };
 const mobMeshes = {};
@@ -523,6 +587,12 @@ function makeCrackTex(){
 const creatures=[];
 const MAX_CREATURES=16;
 let creatureTimer=0;
+const MOB_BASE_SPEED = { cow:1.3, sheep:1.05 };
+function makeCreature(type,x,y,z){
+  return { type, x, y, z, yaw:Math.random()*6.283,
+    hp:MOB_HP, hurt:0, panic:0,                     // 生命值 / 受击闪红 / 受击逃跑计时
+    speed:MOB_BASE_SPEED[type], turn:1+Math.random()*2, walk:Math.random()*6.283 };
+}
 function spawnCreature(){
   if(creatures.length>=MAX_CREATURES) return;
   const type = Math.random()<0.5 ? 'cow' : 'sheep';
@@ -531,14 +601,22 @@ function spawnCreature(){
   const wz=Math.floor(player.z+Math.sin(ang)*r);
   const h=getHeight(wx,wz);
   if(h<2) return;
-  creatures.push({ type, x:wx+0.5, y:h+1, z:wz+0.5, yaw:Math.random()*6.283,
-    speed: type==='cow'?1.3:1.05, turn:1+Math.random()*2, walk:Math.random()*6.283 });
+  creatures.push(makeCreature(type, wx+0.5, h+1, wz+0.5));
 }
 function updateCreatures(dt){
   for(let i=creatures.length-1;i>=0;i--){
     const c=creatures[i];
-    c.turn-=dt;
-    if(c.turn<=0){ c.yaw += (Math.random()-0.5)*1.6; c.turn=1+Math.random()*2.5; }
+    if(c.hurt>0) c.hurt=Math.max(0, c.hurt-dt*3);      // 受击红晕衰减
+    if(c.panic>0){
+      // 被打后掉头逃跑（远离玩家）
+      c.panic-=dt;
+      c.yaw=Math.atan2(c.x-player.x, c.z-player.z);
+      c.speed=MOB_BASE_SPEED[c.type]*2.3;
+    } else {
+      c.speed=MOB_BASE_SPEED[c.type];
+      c.turn-=dt;
+      if(c.turn<=0){ c.yaw += (Math.random()-0.5)*1.6; c.turn=1+Math.random()*2.5; }
+    }
     c.vx=Math.sin(c.yaw)*c.speed; c.vz=Math.cos(c.yaw)*c.speed;
     c.x+=c.vx*dt; c.z+=c.vz*dt;
     const h=getHeight(Math.floor(c.x), Math.floor(c.z));
@@ -549,6 +627,42 @@ function updateCreatures(dt){
   }
   creatureTimer-=dt;
   if(creatureTimer<=0){ creatureTimer=1.2+Math.random()*1.5; if(creatures.length<MAX_CREATURES) spawnCreature(); }
+}
+
+// --- 掉落物（牛排 / 羊排）：掉在地上漂浮旋转，走近自动拾取 ---
+const drops=[];
+function spawnDrop(kind,x,y,z){
+  if(drops.length>60) drops.shift();
+  drops.push({ kind, x, y, z, spin:Math.random()*6.283, t:Math.random()*6.283 });
+}
+function updateDrops(dt){
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i];
+    d.t+=dt; d.spin+=dt*1.6;
+    const h=getHeight(Math.floor(d.x), Math.floor(d.z));
+    const rest=h+1.35+Math.sin(d.t*2.2)*0.12;        // 落地面后上下轻浮
+    d.y += (rest-d.y)*Math.min(1, dt*5);
+    const dx=d.x-player.x, dz=d.z-player.z, dy=d.y-(player.y+0.9);
+    if(dx*dx+dz*dz < 2.2*2.2 && Math.abs(dy)<2.2){   // 走近自动拾取
+      inv[d.kind]=(inv[d.kind]||0)+1;
+      toast(i18n.t(d.kind==='beef'?'mc_got_beef':'mc_got_lamb')+' x'+(inv[d.kind]));
+      sfx(d.kind==='beef'?680:760, 0.09, 'sine', 0.05);
+      drops.splice(i,1); continue;
+    }
+    if(dx*dx+dz*dz > 80*80) drops.splice(i,1);
+  }
+}
+// 击杀生物：扣血、击退、死亡则掉落
+function killCreature(c, idx){
+  const kind = c.type==='cow' ? 'beef' : 'lamb';
+  spawnDrop(kind, c.x, c.y+0.4, c.z);
+  for(let i=0;i<8;i++) particles.push({ x:c.x+(Math.random()-0.5)*0.6, y:c.y+0.6+(Math.random()-0.5)*0.6, z:c.z+(Math.random()-0.5)*0.6,
+    vx:(Math.random()-0.5)*3, vy:2+Math.random()*2.5, vz:(Math.random()-0.5)*3,
+    life:0.5+Math.random()*0.4, r:0.75, g:0.25, b:0.22 });
+  creatures.splice(idx,1);
+  sfx(220, 0.22, 'sawtooth', 0.05);
+  setTimeout(()=>sfx(140,0.28,'sawtooth',0.045), 90);
+  toast(i18n.t(c.type==='cow'?'mc_killed_cow':'mc_killed_sheep'));
 }
 
 // --- 破碎碎屑粒子 ---
@@ -572,15 +686,69 @@ function updateParticles(dt){
   }
 }
 
+// --- 攻击（左键打牛 / 羊） ---
+const MOB_REACH=3.6;                       // 徒手攻击距离
+let punchCd=0, creativeBreakCd=0;
+// 射线 vs 生物包围盒（slab 法），返回准星命中的最近生物
+function pickMob(maxDist){
+  const ex=player.x, ey=player.y+EYE, ez=player.z;
+  const d=getForward();
+  let best=null, bestT=maxDist;
+  for(const c of creatures){
+    // 判定盒比模型略宽松：眼高 1.62，平视时也能打中，避免必须低头瞄准
+    const lo=[c.x-0.6, c.y-0.2, c.z-0.6], hi=[c.x+0.6, c.y+1.9, c.z+0.6];
+    const o=[ex,ey,ez];
+    let t0=0, t1=bestT, ok=true;
+    for(let i=0;i<3;i++){
+      const dd=d[i];
+      if(Math.abs(dd)<1e-6){ if(o[i]<lo[i]||o[i]>hi[i]){ ok=false; break; } continue; }
+      let ta=(lo[i]-o[i])/dd, tb=(hi[i]-o[i])/dd;
+      if(ta>tb){ const tmp=ta; ta=tb; tb=tmp; }
+      if(ta>t0) t0=ta;
+      if(tb<t1) t1=tb;
+      if(t0>t1){ ok=false; break; }
+    }
+    if(ok && t0>=0 && t0<bestT){ bestT=t0; best=c; }
+  }
+  return best;
+}
+function punchMob(c){
+  c.hp -= PUNCH_DMG;
+  c.hurt = 1;                              // 受击闪红
+  c.panic = 4;                             // 掉头逃跑 4 秒
+  const dx=c.x-player.x, dz=c.z-player.z, dl=Math.hypot(dx,dz)||1;
+  c.x += dx/dl*0.45; c.z += dz/dl*0.45;    // 击退
+  for(let i=0;i<5 && particles.length<MAX_PARTICLES;i++)
+    particles.push({ x:c.x+(Math.random()-0.5)*0.5, y:c.y+0.8+(Math.random()-0.5)*0.5, z:c.z+(Math.random()-0.5)*0.5,
+      vx:(Math.random()-0.5)*2.5, vy:1.5+Math.random()*2, vz:(Math.random()-0.5)*2.5,
+      life:0.4+Math.random()*0.3, r:0.85, g:0.25, b:0.2 });
+  sfx(150, 0.08, 'square', 0.05);
+  if(c.hp<=0){ const idx=creatures.indexOf(c); if(idx>=0) killCreature(c, idx); }
+}
+
 // --- 挖掘状态机 ---
 let mouseLeftDown=false;
 const mining={ active:false, x:0, y:0, z:0, progress:0 };
 function updateMining(dt){
+  punchCd-=dt; creativeBreakCd-=dt;
   if(mouseLeftDown){
-    const t=raycast(6);
+    // 生物优先于方块：准星指着牛羊时先打它
+    if(punchCd<=0){
+      const c=pickMob(MOB_REACH);
+      if(c){ punchMob(c); punchCd=0.4; mining.active=false; return; }
+    }
+    const t=raycast(reachDist());
     if(t){
       const bt=getBlock(t.x,t.y,t.z);
       if(bt!==AIR && bt!==BEDROCK){
+        if(isCreative()){                  // 创造模式：瞬间破坏（小冷却防刷屏）
+          if(creativeBreakCd<=0){
+            breakBlock(t); spawnBreakParticles(t.x,t.y,t.z,bt); creativeBreakCd=0.12;
+            sfx(330, 0.05, 'square', 0.03);
+          }
+          mining.active=false;
+          return;
+        }
         if(!mining.active || mining.x!==t.x || mining.y!==t.y || mining.z!==t.z){
           mining.active=true; mining.x=t.x; mining.y=t.y; mining.z=t.z; mining.progress=0;
         }
@@ -598,7 +766,7 @@ const canvas = document.getElementById('gl');
 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 let progMain, progLine, aPosM, aUVM, aTileM, aLightM, uProjM, uViewM, uTexM, uTileSizeM, uCamM, uSkyM, uFogStartM, uFogEndM, aPosL, uProjL, uViewL, uOffL, uColL, bufLine;
 // 生物 / 粒子 / 裂纹程序与缓冲
-let progMob, progCrack, aPosMob, aColMob, aLightMob, uProjMob, uViewMob, uModelMob, uCamMob, uSkyMob, uFogStartMob, uFogEndMob, aPosCrack, aUVCrack, uProjCrack, uViewCrack, uTexCrack, uAlphaCrack, bufPart, bufCrack;
+let progMob, progCrack, aPosMob, aColMob, aLightMob, uProjMob, uViewMob, uModelMob, uCamMob, uSkyMob, uFogStartMob, uFogEndMob, uHurtMob, aPosCrack, aUVCrack, uProjCrack, uViewCrack, uTexCrack, uAlphaCrack, bufPart, bufCrack;
 
 function compile(type, src){
   const s = gl.createShader(type);
@@ -676,8 +844,9 @@ function initGL(){
   const fsMob = `precision mediump float;
     varying vec3 vColor; varying float vLight; varying vec3 vWorld;
     uniform vec3 uCam; uniform vec3 uSky; uniform float uFogStart; uniform float uFogEnd;
+    uniform float uHurt;                       // 受击红晕 0~1
     void main(){
-      vec3 col=vColor*vLight;
+      vec3 col=mix(vColor*vLight, vec3(1.0,0.22,0.18), uHurt);
       float d=distance(vWorld,uCam);
       float f=clamp((d-uFogStart)/(uFogEnd-uFogStart),0.0,1.0);
       col=mix(col,uSky,f);
@@ -693,12 +862,14 @@ function initGL(){
   uProjMob=gl.getUniformLocation(progMob,'uProj'); uViewMob=gl.getUniformLocation(progMob,'uView'); uModelMob=gl.getUniformLocation(progMob,'uModel');
   uCamMob=gl.getUniformLocation(progMob,'uCam'); uSkyMob=gl.getUniformLocation(progMob,'uSky');
   uFogStartMob=gl.getUniformLocation(progMob,'uFogStart'); uFogEndMob=gl.getUniformLocation(progMob,'uFogEnd');
+  uHurtMob=gl.getUniformLocation(progMob,'uHurt');
   aPosCrack=gl.getAttribLocation(progCrack,'aPos'); aUVCrack=gl.getAttribLocation(progCrack,'aUV');
   uProjCrack=gl.getUniformLocation(progCrack,'uProj'); uViewCrack=gl.getUniformLocation(progCrack,'uView');
   uTexCrack=gl.getUniformLocation(progCrack,'uTex'); uAlphaCrack=gl.getUniformLocation(progCrack,'uAlpha');
   bufPart=gl.createBuffer(); bufCrack=gl.createBuffer();
   makeCrackTex();
   mobMeshes.cow=buildMobMesh('cow'); mobMeshes.sheep=buildMobMesh('sheep');
+  mobMeshes.beef=buildMobMesh('beef'); mobMeshes.lamb=buildMobMesh('lamb');
   resize();
 }
 function resize(){
@@ -724,13 +895,74 @@ function lookAt(ex,ey,ez, cx,cy,cz, ux,uy,uz){
     -(x0*ex+x1*ey+x2*ez), -(y0*ex+y1*ey+y2*ez), -(z0*ex+z1*ey+z2*ez), 1 ];
 }
 
+// ===================== 音效（WebAudio，极轻量合成音） =====================
+let actx=null;
+function sfx(freq, dur, type, gain){
+  try{
+    if(!actx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; actx=new AC(); }
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type||'square'; o.frequency.value=freq;
+    const t=actx.currentTime, v=gain||0.05;
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t+dur+0.03);
+  }catch(e){ /* 音效失败不影响游戏 */ }
+}
+
 // ===================== 玩家 =====================
-const player = { x:4.5, y:12, z:4.5, vx:0, vy:0, vz:0, yaw:0, pitch:0, onGround:false };
+const player = { x:4.5, y:12, z:4.5, vx:0, vy:0, vz:0, yaw:0, pitch:0, onGround:false,
+  hp:MAX_HP, food:MAX_FOOD, flying:false, airPeak:null };
 function spawnPlayer(){
   player.y = getHeight(Math.floor(player.x), Math.floor(player.z)) + 1.5;
   player.vx=player.vy=player.vz=0;
+  player.flying=false; player.airPeak=player.y;
 }
 const HW=0.3, PH=1.8, EYE=1.62, GRAV=26, SPEED=4.6, JUMP=8.2;
+const FLY_UP=7.0, FLY_SPEED=SPEED*1.7;       // 创造模式飞行：上升速度 / 水平速度
+
+// --- 生命值 / 饱食度 ---
+let foodAcc=0, starveAcc=0, regenAcc=0;
+function hurtPlayer(n){
+  if(isCreative()) return;                  // 创造模式无敌
+  if(dead) return;
+  player.hp=Math.max(0, player.hp-n);
+  sfx(180, 0.12, 'square', 0.05);
+  if(player.hp<=0) die();
+}
+function healPlayer(hpN, foodN){
+  player.hp=Math.min(MAX_HP, player.hp+hpN);
+  player.food=Math.min(MAX_FOOD, player.food+foodN);
+}
+function die(){
+  if(dead) return;
+  dead=true;
+  sfx(120, 0.5, 'sawtooth', 0.05);
+  document.getElementById('death-ov').style.display='flex';
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function respawn(){
+  dead=false;
+  player.hp=MAX_HP; player.food=MAX_FOOD;
+  player.x=4.5; player.z=4.5; player.yaw=0; player.pitch=0;
+  spawnPlayer();
+  document.getElementById('death-ov').style.display='none';
+  canvas.requestPointerLock();
+}
+function updateSurvival(dt){
+  if(isCreative() || dead) return;
+  // 饱食度随时间下降；疾跑（Shift）消耗更快
+  foodAcc += dt * (keys['shift'] && (keys['w']||keys['a']||keys['s']||keys['d']) ? 1/6 : 1/14);
+  while(foodAcc>=1){ foodAcc-=1; player.food=Math.max(0, player.food-1); }
+  if(player.food<=0){
+    starveAcc+=dt;
+    while(starveAcc>=3){ starveAcc-=3; hurtPlayer(1); }     // 饥饿持续掉血
+  } else if(player.food>=16 && player.hp<MAX_HP){
+    regenAcc+=dt;
+    while(regenAcc>=3){ regenAcc-=3; player.hp=Math.min(MAX_HP, player.hp+1); }  // 吃饱自动回血
+  } else { regenAcc=0; }
+}
 function collides(px,py,pz){
   const minX=Math.floor(px-HW), maxX=Math.floor(px+HW);
   const minY=Math.floor(py), maxY=Math.floor(py+PH-0.001);
@@ -754,12 +986,17 @@ function update(dt){
   if(keys['d']){ fx+=rightX; fz+=rightZ; }
   if(keys['a']){ fx-=rightX; fz-=rightZ; }
   const len=Math.hypot(fx,fz);
-  const sp = (keys['shift']?SPEED*1.8:SPEED);
+  const flying = isCreative() && player.flying;
+  const sp = flying ? FLY_SPEED : (keys['shift']?SPEED*1.8:SPEED);
   if(len>0){ fx=fx/len*sp; fz=fz/len*sp; }
   player.vx = fx; player.vz = fz;
-  // 重力
-  player.vy -= GRAV*dt;
-  if(player.vy < -40) player.vy=-40;
+  // 重力（创造模式飞行时改为自由升降）
+  if(flying){
+    player.vy = keys[' '] ? FLY_UP : (keys['shift'] ? -FLY_UP : 0);
+  } else {
+    player.vy -= GRAV*dt;
+    if(player.vy < -40) player.vy=-40;
+  }
   // 逐轴移动 + 碰撞
   player.x += player.vx*dt;
   if(collides(player.x,player.y,player.z)){
@@ -773,18 +1010,31 @@ function update(dt){
     else if(player.vz<0) player.z = Math.floor(player.z-HW)+1+HW+1e-3;
     player.vz=0;
   }
+  const wasGround = player.onGround;
   player.y += player.vy*dt;
   player.onGround=false;
   if(collides(player.x,player.y,player.z)){
     if(player.vy>0){ player.y = Math.floor(player.y+PH)-PH-1e-3; player.vy=0; }
     else { player.y = Math.floor(player.y)+1+1e-3; player.vy=0; player.onGround=true; }
   }
-  // 掉出世界保护
-  if(player.y < -8){ spawnPlayer(); }
-  // 生物 / 粒子 / 挖掘
+  // 跌落伤害（仅生存模式；飞行与创造模式免疫）
+  if(player.onGround){
+    if(!wasGround && player.airPeak!=null && isSurvival()){
+      const fall = player.airPeak - player.y;
+      if(fall>3){ hurtPlayer(Math.floor(fall-3)); toast(i18n.t('mc_fall_hurt')); }
+    }
+    player.airPeak = player.y;
+  } else {
+    player.airPeak = (player.airPeak==null) ? player.y : Math.max(player.airPeak, player.y);
+  }
+  // 掉出世界保护（生存模式按跌落处理）
+  if(player.y < -8){ if(isSurvival()) hurtPlayer(6); spawnPlayer(); }
+  // 生物 / 粒子 / 挖掘 / 掉落物 / 生存数值
   updateCreatures(dt);
   updateParticles(dt);
+  updateDrops(dt);
   updateMining(dt);
+  updateSurvival(dt);
 }
 
 // ===================== 射线拾取 =====================
@@ -828,6 +1078,7 @@ function playerOverlapsCell(cx,cy,cz){
 }
 function placeBlock(){
   if(!hit) return;
+  if(selected==='food') return;            // 第 9 格是肉排，不能当方块放置
   const cx=hit.x+hit.nx, cy=hit.y+hit.ny, cz=hit.z+hit.nz;
   if(cy<0||cy>=Y) return;             // 仅在竖直范围内放置（水平方向无限）
   if(getBlock(cx,cy,cz)!==AIR) return;
@@ -901,6 +1152,29 @@ function render(){
       const model=mMul(mTrans(c.x, c.y + Math.sin(c.walk)*0.04, c.z), mRotY(c.yaw));
       const m=mobMeshes[c.type];
       gl.uniformMatrix4fv(uModelMob,false,model);
+      gl.uniform1f(uHurtMob, c.hurt>0 ? 0.55 : 0);        // 受击红晕
+      gl.bindBuffer(gl.ARRAY_BUFFER, m.buf);
+      gl.enableVertexAttribArray(aPosMob);   gl.vertexAttribPointer(aPosMob,3,gl.FLOAT,false,28,0);
+      gl.enableVertexAttribArray(aColMob);   gl.vertexAttribPointer(aColMob,3,gl.FLOAT,false,28,12);
+      gl.enableVertexAttribArray(aLightMob); gl.vertexAttribPointer(aLightMob,1,gl.FLOAT,false,28,24);
+      gl.drawArrays(gl.TRIANGLES,0,m.count);
+    }
+  }
+  // 掉落物（牛排 / 羊排）：原地旋转 + 上下轻浮
+  if(drops.length){
+    gl.useProgram(progMob);
+    gl.uniformMatrix4fv(uProjMob,false,projMat);
+    gl.uniformMatrix4fv(uViewMob,false,viewMat);
+    gl.uniform3f(uCamMob, ex,ey,ez);
+    gl.uniform3f(uSkyMob, 0.53,0.72,0.92);
+    gl.uniform1f(uFogStartMob, 18.0);
+    gl.uniform1f(uFogEndMob, 42.0);
+    gl.uniform1f(uHurtMob, 0);
+    for(const d of drops){
+      const s=0.55;
+      const model=mMul(mMul(mTrans(d.x, d.y, d.z), mRotY(d.spin)), mScale(s,s,s));
+      gl.uniformMatrix4fv(uModelMob,false,model);
+      const m=mobMeshes[d.kind];
       gl.bindBuffer(gl.ARRAY_BUFFER, m.buf);
       gl.enableVertexAttribArray(aPosMob);   gl.vertexAttribPointer(aPosMob,3,gl.FLOAT,false,28,0);
       gl.enableVertexAttribArray(aColMob);   gl.vertexAttribPointer(aColMob,3,gl.FLOAT,false,28,12);
@@ -921,6 +1195,7 @@ function render(){
     gl.uniform3f(uSkyMob, 0.53,0.72,0.92);
     gl.uniform1f(uFogStartMob, 18.0);
     gl.uniform1f(uFogEndMob, 42.0);
+    gl.uniform1f(uHurtMob, 0);
     gl.uniformMatrix4fv(uModelMob,false,mIdent());
     gl.enableVertexAttribArray(aPosMob);   gl.vertexAttribPointer(aPosMob,3,gl.FLOAT,false,28,0);
     gl.enableVertexAttribArray(aColMob);   gl.vertexAttribPointer(aColMob,3,gl.FLOAT,false,28,12);
@@ -929,7 +1204,7 @@ function render(){
   }
   // 挖掘裂纹覆盖层
   if(mining.active){
-    const h=raycast(6);
+    const h=raycast(reachDist());
     if(h){
       let face=null;
       for(const f of FACES){ if(f.d[0]===h.nx && f.d[1]===h.ny && f.d[2]===h.nz){ face=f; break; } }
@@ -958,7 +1233,7 @@ function render(){
     }
   }
   // 高亮框
-  hit = raycast(6);
+  hit = raycast(reachDist());
   if(hit){
     gl.useProgram(progLine);
     gl.uniformMatrix4fv(uProjL,false,projMat);
@@ -976,11 +1251,39 @@ function render(){
 // ===================== 输入 =====================
 const keys = {};
 let playing = false, locked = false, selected = HOTBAR[0], selIndex = 0;
+// 热键栏第 9 格是「肉排」，不是方块
+function slotItem(i){ return i===SLOT_FOOD ? 'food' : HOTBAR[i]; }
+function selectSlot(i){ selIndex=((i%SLOT_COUNT)+SLOT_COUNT)%SLOT_COUNT; selected=slotItem(selIndex); updateHotbar(); }
+// 模式切换（开始界面选择，或游戏中按 M）
+function toggleMode(){
+  mode = isCreative() ? SURVIVAL : CREATIVE;
+  if(mode===SURVIVAL) player.flying=false;
+  else { player.hp=MAX_HP; player.food=MAX_FOOD; }      // 创造模式不显示生存数值
+  toast((isCreative()?i18n.t('mc_mode_creative'):i18n.t('mc_mode_survival')) + ' · ' + i18n.t('mc_m_tip'));
+  sfx(isCreative()?520:400, 0.12, 'sine', 0.05);
+  updateModeTag();
+  if(playing) updateHUD();
+}
+let lastSpaceT=-1e9;
 window.addEventListener('keydown', e=>{
   const k=e.key.toLowerCase();
   keys[k]=true;
-  if(k>='1'&&k<='8'){ const i=+k-1; if(i<HOTBAR.length){ selIndex=i; selected=HOTBAR[i]; updateHotbar(); } }
-  if(k===' ' && player.onGround){ player.vy=JUMP; }
+  if(k>='1'&&k<='9'){ const i=+k-1; if(i<SLOT_COUNT) selectSlot(i); }
+  if(k==='m' && playing && locked) toggleMode();
+  if(k===' ' && !e.repeat){
+    const now=performance.now();
+    const dbl=(now-lastSpaceT)<350;                      // 双击空格
+    lastSpaceT=now;
+    if(isCreative() && dbl){
+      player.flying=!player.flying; player.vy=0;
+      lastSpaceT=-1e9;                        // 归零，保证下一次「双击」重新计数（避免三连按来回切）
+      toast(player.flying?i18n.t('mc_fly_on'):i18n.t('mc_fly_off'));
+      sfx(player.flying?700:420, 0.14, 'sine', 0.05);
+      if(playing) updateHUD();
+    } else if(!(isCreative() && player.flying) && player.onGround){
+      player.vy=JUMP;
+    }
+  }
   if(k==='escape'){ /* 浏览器会自动退出指针锁定 */ }
 });
 window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
@@ -994,15 +1297,14 @@ canvas.addEventListener('mousemove', e=>{
 });
 canvas.addEventListener('mousedown', e=>{
   if(!locked) return;
-  if(e.button===0) mouseLeftDown=true;          // 持续左键 = 挖掘
-  else if(e.button===2) placeBlock();
+  if(e.button===0) mouseLeftDown=true;          // 持续左键 = 挖掘 / 攻击
+  else if(e.button===2){ if(selected==='food') eatFood(); else placeBlock(); }
 });
 window.addEventListener('mouseup', e=>{ if(e.button===0) mouseLeftDown=false; });
 canvas.addEventListener('contextmenu', e=>e.preventDefault());
 canvas.addEventListener('wheel', e=>{
   if(!locked) return;
-  selIndex = (selIndex + (e.deltaY>0?1:-1) + HOTBAR.length) % HOTBAR.length;
-  selected = HOTBAR[selIndex]; updateHotbar();
+  selectSlot(selIndex + (e.deltaY>0?1:-1));
   e.preventDefault();
 }, {passive:false});
 
@@ -1011,7 +1313,7 @@ canvas.addEventListener('click', ()=>{ if(playing && !locked) canvas.requestPoin
 document.addEventListener('pointerlockchange', ()=>{
   locked = (document.pointerLockElement === canvas);
   if(!locked) mouseLeftDown=false;            // 暂停时停止挖掘
-  document.getElementById('pause-ov').style.display = (playing && !locked) ? 'flex' : 'none';
+  document.getElementById('pause-ov').style.display = (playing && !locked && !dead) ? 'flex' : 'none';
   if(playing && !locked) saveLocal(true);     // 暂停即自动保存，避免数据丢失
 });
 window.addEventListener('beforeunload', ()=>{ if(playing) saveLocal(true); });   // 关闭页面前自动保存
@@ -1033,28 +1335,90 @@ const slotColors = {
   [GRASS]:'#6ab04c', [DIRT]:'#8b5a2b', [STONE]:'#8f8f93', [WOOD]:'#6b4a2b',
   [LEAVES]:'#34924a', [SAND]:'#e0d8a0', [PLANK]:'#c19a6b', [GLASS]:'#aed6f1', [BEDROCK]:'#444'
 };
+function slotLabel(i){
+  if(i===SLOT_FOOD) return i18n.t('mc_food_slot')+' ×'+foodTotal();
+  return blockName(HOTBAR[i]);
+}
 function buildHotbar(){
   const hb=document.getElementById('hotbar'); hb.innerHTML='';
-  HOTBAR.forEach((t,i)=>{
+  for(let i=0;i<SLOT_COUNT;i++){
     const s=document.createElement('div'); s.className='slot'+(i===selIndex?' sel':'');
     s.dataset.i=i;
-    const sw=document.createElement('div'); sw.className='sw'; sw.style.background=slotColors[t];
+    const sw=document.createElement('div'); sw.className='sw';
+    sw.style.background = (i===SLOT_FOOD) ? '#b8543a' : slotColors[HOTBAR[i]];
     const num=document.createElement('div'); num.className='num'; num.textContent=(i+1);
-    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=blockName(t);
+    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=slotLabel(i);
     s.appendChild(sw); s.appendChild(num); s.appendChild(nm);
-    s.addEventListener('click',()=>{ selIndex=i; selected=t; updateHotbar(); });
+    s.addEventListener('click',()=>selectSlot(i));
     hb.appendChild(s);
-  });
+  }
 }
 function updateHotbar(){
-  document.querySelectorAll('#hotbar .slot').forEach((s,i)=>{ s.classList.toggle('sel', i===selIndex); });
+  document.querySelectorAll('#hotbar .slot').forEach((s,i)=>{
+    s.classList.toggle('sel', i===selIndex);
+    if(i===SLOT_FOOD){ const nm=s.querySelector('.nm'); if(nm) nm.textContent=slotLabel(i); }
+  });
+}
+// 吃肉排：选中第 9 格后按右键（优先吃牛排）
+let eatCdT=0;
+function eatFood(){
+  if(performance.now()<eatCdT) return;
+  const kind = inv.beef>0 ? 'beef' : (inv.lamb>0 ? 'lamb' : null);
+  if(!kind){ toast(i18n.t('mc_no_food')); return; }
+  inv[kind]--;
+  const v=FOOD_VALUE[kind];
+  healPlayer(v.hp, v.food);
+  eatCdT=performance.now()+600;
+  toast(i18n.t(kind==='beef'?'mc_ate_beef':'mc_ate_lamb')+'  +'+v.food+' '+i18n.t('mc_food_name')+' / +'+v.hp+' '+i18n.t('mc_hp_name'));
+  sfx(kind==='beef'?520:600, 0.10, 'sine', 0.05);
+  setTimeout(()=>sfx(kind==='beef'?660:740,0.12,'sine',0.045), 110);
+  updateHotbar();
+}
+// --- 生命值 / 饱食度 显示条 ---
+function buildBars(){
+  const hpRow=document.getElementById('hpRow'), fdRow=document.getElementById('fdRow');
+  hpRow.innerHTML=''; fdRow.innerHTML='';
+  for(let i=0;i<10;i++){ const s=document.createElement('span'); s.className='pip hp e'; s.textContent='♥'; hpRow.appendChild(s); }
+  for(let i=0;i<10;i++){ const s=document.createElement('span'); s.className='pip fd e'; s.textContent='🍖'; fdRow.appendChild(s); }
+}
+function updateBars(){
+  const bars=document.getElementById('bars');
+  if(!isSurvival() || !playing){ bars.style.display='none'; return; }
+  bars.style.display='block';
+  const hpPips=document.getElementById('hpRow').children;
+  for(let i=0;i<hpPips.length;i++){
+    const v=player.hp - i*2;
+    hpPips[i].className='pip hp ' + (v>=2?'f':(v>=1?'h':'e'));
+  }
+  const fdPips=document.getElementById('fdRow').children;
+  for(let i=0;i<fdPips.length;i++){
+    const v=player.food - i*2;
+    fdPips[i].className='pip fd ' + (v>=1?'f':'e');
+  }
+  document.getElementById('foodCount').textContent =
+    '🎒 '+i18n.t('mc_food_slot')+' '+foodTotal()+
+    (inv.beef? '  ('+i18n.t('mc_beef')+'×'+inv.beef+')':'')+
+    (inv.lamb? '  ('+i18n.t('mc_lamb')+'×'+inv.lamb+')':'');
+}
+function updateModeTag(){
+  const el=document.getElementById('modeTag');
+  if(!playing){ el.style.display='none'; return; }
+  el.style.display='block';
+  el.textContent = isCreative()
+    ? ('🏗️ '+i18n.t('mc_mode_creative')+(player.flying?(' · ✈️ '+i18n.t('mc_flying')):''))
+    : ('⚔️ '+i18n.t('mc_mode_survival'));
 }
 const hud=document.getElementById('hud');
 function updateHUD(){
   const bx=Math.floor(player.x), by=Math.floor(player.y), bz=Math.floor(player.z);
-  let extra = `移动:WASD · 跳跃:空格<br>生物:${creatures.length}`;
-  if(mining.active) extra += `<br>⛏ 挖掘中… ${Math.min(100,Math.floor(mining.progress*100))}%`;
-  hud.innerHTML = `坐标 X:${bx} Y:${by} Z:${bz}<br>${i18n.t('mc_cur_block')}:${blockName(selected)}<br>${extra}`;
+  let extra = i18n.t('mc_move_hint')+'<br>'+i18n.t('mc_mob_count')+':'+creatures.length;
+  if(isCreative())
+    extra += '<br>✈️ '+(player.flying ? i18n.t('mc_flying')+' · '+i18n.t('mc_space_up') : i18n.t('mc_fly_hint'));
+  else if(foodTotal()>0) extra += '<br>🍖 '+i18n.t('mc_eat_hint');
+  if(mining.active) extra += '<br>⛏ '+i18n.t('mc_mining')+' '+Math.min(100,Math.floor(mining.progress*100))+'%';
+  const selName = (selected==='food') ? (i18n.t('mc_food_slot')+' ×'+foodTotal()) : blockName(selected);
+  hud.innerHTML = i18n.t('mc_pos')+` X:${bx} Y:${by} Z:${bz}<br>`+i18n.t('mc_cur_block')+':'+selName+'<br>'+extra;
+  updateBars(); updateModeTag();
 }
 
 // ===================== 存档（保存 / 读取 / 导出 / 导入） =====================
@@ -1070,16 +1434,20 @@ function buildSave(){
     }
   }
   return {
-    v:1,
-    player:{ x:player.x, y:player.y, z:player.z, yaw:player.yaw, pitch:player.pitch },
+    v:2,
+    mode,
+    player:{ x:player.x, y:player.y, z:player.z, yaw:player.yaw, pitch:player.pitch, hp:player.hp, food:player.food },
     sel:selIndex, selected,
+    inv:{ beef:inv.beef, lamb:inv.lamb },
     edits,
-    creatures: creatures.map(c=>({ type:c.type, x:c.x, y:c.y, z:c.z, yaw:c.yaw, walk:c.walk }))
+    drops: drops.map(d=>({ kind:d.kind, x:d.x, y:d.y, z:d.z, spin:d.spin, t:d.t })),
+    creatures: creatures.map(c=>({ type:c.type, x:c.x, y:c.y, z:c.z, yaw:c.yaw, walk:c.walk, hp:c.hp }))
   };
 }
 function applySave(s){
   // 清空当前世界，避免新旧编辑混淆
   loadedChunks.clear(); chunkEdits.clear(); creatures.length=0; particles.length=0; mining.active=false;
+  drops.length=0;
   // 写入编辑增量（分块尚未加载，getChunk 时自动烘焙）
   if(Array.isArray(s.edits)){
     for(const e of s.edits){
@@ -1087,20 +1455,37 @@ function applySave(s){
       writeEdit(e[0], e[1], e[2], e[3]);
     }
   }
+  // 游戏模式
+  if(s.mode===SURVIVAL || s.mode===CREATIVE) mode=s.mode;
   // 玩家状态
   if(s.player){
     player.x=s.player.x; player.y=s.player.y; player.z=s.player.z;
     if(typeof s.player.yaw==='number') player.yaw=s.player.yaw;
     if(typeof s.player.pitch==='number') player.pitch=s.player.pitch;
+    player.hp = (typeof s.player.hp==='number') ? Math.max(1, Math.min(MAX_HP, s.player.hp)) : MAX_HP;
+    player.food = (typeof s.player.food==='number') ? Math.max(0, Math.min(MAX_FOOD, s.player.food)) : MAX_FOOD;
   }
-  // 手持方块
-  if(typeof s.sel==='number' && s.sel>=0 && s.sel<HOTBAR.length){ selIndex=s.sel; selected=HOTBAR[selIndex]; }
+  player.flying=false; player.airPeak=player.y;
+  // 肉排背包
+  inv.beef = (s.inv && typeof s.inv.beef==='number') ? s.inv.beef : 0;
+  inv.lamb = (s.inv && typeof s.inv.lamb==='number') ? s.inv.lamb : 0;
+  // 手持（第 9 格可能是肉排）
+  if(typeof s.sel==='number' && s.sel>=0 && s.sel<SLOT_COUNT){ selIndex=s.sel; selected=slotItem(selIndex); }
+  // 掉落物
+  if(Array.isArray(s.drops)){
+    for(const d of s.drops){
+      if(d.kind!=='beef' && d.kind!=='lamb') continue;
+      drops.push({ kind:d.kind, x:d.x, y:d.y, z:d.z, spin:d.spin||0, t:d.t||0 });
+    }
+  }
   // 生物
   if(Array.isArray(s.creatures)){
     for(const c of s.creatures){
       if(c.type!=='cow' && c.type!=='sheep') continue;
-      creatures.push({ type:c.type, x:c.x, y:c.y, z:c.z, yaw:c.yaw||0,
-        speed: c.type==='cow'?1.3:1.05, turn:1+Math.random()*2, walk:c.walk||0 });
+      const m=makeCreature(c.type, c.x, c.y, c.z);
+      m.yaw=c.yaw||0; m.walk=c.walk||0;
+      m.hp = (typeof c.hp==='number') ? Math.max(1, Math.min(MOB_HP, c.hp)) : MOB_HP;
+      creatures.push(m);
     }
   }
   // 重新加载玩家周围地形并烘焙编辑
@@ -1155,25 +1540,31 @@ function toast(msg){
 }
 
 // ===================== 启动 =====================
-function startGame(fresh){
+function startGame(fresh, modeArg){
+  if(modeArg) mode=modeArg;
   document.getElementById('start-ov').style.display='none';
   document.getElementById('crosshair').style.display='block';
   document.getElementById('hud').style.display='block';
   document.getElementById('hotbar').style.display='flex';
-  playing=true;
+  playing=true; dead=false;
   if(fresh){
     // 新游戏：清空旧世界与编辑，回到出生点
-    loadedChunks.clear(); chunkEdits.clear(); creatures.length=0; particles.length=0;
+    loadedChunks.clear(); chunkEdits.clear(); creatures.length=0; particles.length=0; drops.length=0;
     player.x=4.5; player.y=12; player.z=4.5; player.yaw=0; player.pitch=0;
+    player.hp=MAX_HP; player.food=MAX_FOOD; player.flying=false;
+    inv.beef=0; inv.lamb=0;
     spawnPlayer();
     for(let i=0;i<8;i++) spawnCreature();   // 在玩家周围生成牛羊
   }
+  updateModeTag(); updateHotbar();
   canvas.requestPointerLock();
 }
-document.getElementById('start-btn').addEventListener('click', ()=>{ if(!playing) startGame(true); });
+document.getElementById('start-survival').addEventListener('click', ()=>{ if(!playing) startGame(true, SURVIVAL); });
+document.getElementById('start-creative').addEventListener('click', ()=>{ if(!playing) startGame(true, CREATIVE); });
 document.getElementById('continue-btn').addEventListener('click', ()=>{
-  if(!playing){ if(loadLocal()) startGame(false); else startGame(true); }
+  if(!playing){ if(loadLocal()) startGame(false); else startGame(true, mode); }
 });
+document.getElementById('btn-respawn').addEventListener('click', ()=>respawn());
 
 // ===================== 主循环 =====================
 let lastTime=performance.now();
@@ -1195,15 +1586,51 @@ i18n.init({
   dict: {
     zh: {
       mc_title: '方块世界',
-      mc_tag: 'BLOCKS · 沙盒生存',
+      mc_tag: 'BLOCKS · 生存 / 创造 双模式',
       mc_card: '🖱️ <b>鼠标</b> 移动视角 · <b>按住左键</b> 挖掘方块（越硬越慢）· <b>右键</b> 放置方块<br>' +
                '⌨️ <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · <kbd>空格</kbd> 跳跃 · <kbd>Shift</kbd> 加速<br>' +
-               '🎒 <kbd>1</kbd>~<kbd>8</kbd> 或 <b>滚轮</b> 切换方块 · <kbd>ESC</kbd> 暂停<br>' +
-               '🐮🐑 世界里有牛和羊在游荡，靠近看看它们吧！<br>' +
+               '🎒 <kbd>1</kbd>~<kbd>8</kbd> 选方块 · <kbd>9</kbd> 选肉排 · <b>滚轮</b> 切换 · <kbd>ESC</kbd> 暂停<br>' +
+               '🔀 游戏中随时按 <kbd>M</kbd> 在两种模式之间切换<br>' +
+               '⚔️ <b>生存模式</b>：有 <b>20 点生命</b>（10 颗心）和 <b>20 点饱食度</b>（10 个鸡腿）。' +
+               '饱食度会慢慢消耗，归零就掉血；吃饱了会自动回血。摔落超过 3 格会受伤。<br>' +
+               '🥩 <b>打猎</b>：左键打牛和羊，它们有 <b>5 点生命</b>，5 拳打死，掉落 <b>牛排 / 羊排</b>；' +
+               '走近自动捡起，按 <kbd>9</kbd> 选中肉排后 <b>右键</b> 吃掉回血回饱食度。<br>' +
+               '🏗️ <b>创造模式</b>：所有方块随便用、<b>左键瞬间破坏</b>、不会掉血也不会饿，' +
+               '<b>连按两下空格就能飞</b>（飞行时 <kbd>空格</kbd> 上升 · <kbd>Shift</kbd> 下降）。<br>' +
                '💾 <b>ESC</b> 暂停可保存 / 读取存档，进度自动存在本地，关闭页面前也会自动保存。<br>' +
                '🌍 程序生成的无限地形，自由建造你的世界！',
-      mc_new: '开始新游戏',
+      mc_new_survival: '⚔️ 生存模式',
+      mc_new_creative: '🏗️ 创造模式',
       mc_continue: '继续游戏（读取存档）',
+      mc_mode_survival: '生存模式',
+      mc_mode_creative: '创造模式',
+      mc_m_tip: '按 M 可切换',
+      mc_fly_on: '起飞！✈️ 空格上升 / Shift 下降',
+      mc_fly_off: '已落地 🛬',
+      mc_flying: '飞行中',
+      mc_fly_hint: '连按两下空格起飞',
+      mc_space_up: '空格上升·Shift下降',
+      mc_dead: '你死了！',
+      mc_dead_tip: '血量耗尽 · 点击下面的按钮复活',
+      mc_respawn: '重生',
+      mc_food_slot: '肉排',
+      mc_beef: '牛排',
+      mc_lamb: '羊排',
+      mc_hp_name: '生命',
+      mc_food_name: '饱食度',
+      mc_ate_beef: '吃掉一块牛排',
+      mc_ate_lamb: '吃掉一块羊排',
+      mc_no_food: '没有肉排了！打牛打羊才能获得',
+      mc_eat_hint: '按 9 选中肉排，右键吃掉',
+      mc_got_beef: '捡到牛排',
+      mc_got_lamb: '捡到羊排',
+      mc_killed_cow: '牛被打败了，掉落牛排！',
+      mc_killed_sheep: '羊被打败了，掉落羊排！',
+      mc_fall_hurt: '摔了一下！',
+      mc_move_hint: '移动:WASD · 跳跃:空格',
+      mc_mob_count: '生物',
+      mc_mining: '挖掘中…',
+      mc_pos: '坐标',
       mc_paused: '已暂停',
       mc_resume_tip: '点击空白处继续游戏',
       mc_save: '保存',
@@ -1223,15 +1650,51 @@ i18n.init({
     },
     en: {
       mc_title: 'Block World',
-      mc_tag: 'BLOCKS · Sandbox Survival',
+      mc_tag: 'BLOCKS · Survival / Creative',
       mc_card: '🖱️ <b>Mouse</b> look around · <b>Hold left button</b> to mine blocks (harder = slower) · <b>Right button</b> to place<br>' +
                '⌨️ <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint<br>' +
-               '🎒 <kbd>1</kbd>~<kbd>8</kbd> or <b>scroll wheel</b> to switch blocks · <kbd>ESC</kbd> pause<br>' +
-               '🐮🐑 Cows and sheep roam the world — go say hi!<br>' +
+               '🎒 <kbd>1</kbd>~<kbd>8</kbd> pick a block · <kbd>9</kbd> pick meat · <b>scroll wheel</b> switch · <kbd>ESC</kbd> pause<br>' +
+               '🔀 Press <kbd>M</kbd> any time to switch between the two modes<br>' +
+               '⚔️ <b>Survival</b>: you have <b>20 health</b> (10 hearts) and <b>20 food</b> (10 drumsticks). ' +
+               'Food drains slowly; at zero you starve. Eat well and health regenerates. Falling more than 3 blocks hurts.<br>' +
+               '🥩 <b>Hunting</b>: left-click cows and sheep — they have <b>5 health</b>, so 5 punches kills them and they drop ' +
+               '<b>steak / lamb chop</b>. Walk over to pick it up, press <kbd>9</kbd> then <b>right-click</b> to eat.<br>' +
+               '🏗️ <b>Creative</b>: every block is free, <b>left-click breaks instantly</b>, no damage and no hunger, and ' +
+               '<b>double-tap Space to fly</b> (while flying: <kbd>Space</kbd> up · <kbd>Shift</kbd> down).<br>' +
                '💾 <b>ESC</b> to pause and save / load; progress auto-saves locally (and on exit).<br>' +
                '🌍 Procedurally generated infinite terrain — build your own world!',
-      mc_new: 'New Game',
+      mc_new_survival: '⚔️ Survival Mode',
+      mc_new_creative: '🏗️ Creative Mode',
       mc_continue: 'Continue (Load Save)',
+      mc_mode_survival: 'Survival',
+      mc_mode_creative: 'Creative',
+      mc_m_tip: 'press M to switch',
+      mc_fly_on: 'Flying! ✈️ Space up / Shift down',
+      mc_fly_off: 'Landed 🛬',
+      mc_flying: 'Flying',
+      mc_fly_hint: 'Double-tap Space to fly',
+      mc_space_up: 'Space up · Shift down',
+      mc_dead: 'You Died!',
+      mc_dead_tip: 'Out of health · click the button to respawn',
+      mc_respawn: 'Respawn',
+      mc_food_slot: 'Meat',
+      mc_beef: 'Steak',
+      mc_lamb: 'Lamb',
+      mc_hp_name: 'HP',
+      mc_food_name: 'Food',
+      mc_ate_beef: 'Ate a steak',
+      mc_ate_lamb: 'Ate a lamb chop',
+      mc_no_food: 'No meat! Hunt a cow or a sheep first',
+      mc_eat_hint: 'Press 9 to select meat, then right-click to eat',
+      mc_got_beef: 'Picked up steak',
+      mc_got_lamb: 'Picked up lamb chop',
+      mc_killed_cow: 'The cow is down — steak dropped!',
+      mc_killed_sheep: 'The sheep is down — lamb dropped!',
+      mc_fall_hurt: 'That fall hurt!',
+      mc_move_hint: 'Move:WASD · Jump:Space',
+      mc_mob_count: 'Mobs',
+      mc_mining: 'Mining…',
+      mc_pos: 'Pos',
       mc_paused: 'Paused',
       mc_resume_tip: 'Click anywhere to resume',
       mc_save: 'Save',
@@ -1264,7 +1727,9 @@ initGL();
 ensureChunksAround(0,0);          // 预加载出生点周围地形
 spawnPlayer();
 buildHotbar();
+buildBars();
 if(hasLocalSave()) document.getElementById('continue-btn').style.display='block';
+updateModeTag();
 requestAnimationFrame(frame);
 </script>
 </body>

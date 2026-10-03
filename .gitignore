@@ -1,5 +1,13 @@
 # macOS
 .DS_Store
+Thumbs.db
 
 # WorkBuddy local project data (not source)
 .workbuddy/
+
+# 依赖与临时产物
+node_modules/
+*.log
+*.tmp
+*.bak
+npm-debug.log*
