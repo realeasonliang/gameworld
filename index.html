@@ -52,6 +52,15 @@
   .card p { position:relative; font-size:13px; color:var(--muted2); line-height:1.65; }
   .tag { position:relative; display:inline-block; margin-top:12px; font-size:11px; color:var(--teal);
     background:rgba(20,40,40,.5); padding:3px 9px; border-radius:20px; }
+  .card .ver { position:absolute; top:12px; right:12px; z-index:2; font-size:11px; letter-spacing:.3px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--blue2);
+    background:rgba(74,163,255,.12); border:1px solid rgba(91,141,255,.3); padding:2px 8px; border-radius:20px; }
+  .card:hover .ver { color:#cfe0ff; border-color:var(--blue2); background:rgba(74,163,255,.2); }
+  .ver-line { margin-top:10px; font-size:11px; color:var(--faint); text-align:center; letter-spacing:.3px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .ver-line b { color:var(--blue2); font-weight:400; }
+  .ver-line a { color:inherit; text-decoration:none; border-bottom:1px dotted currentColor; }
+  .ver-line a:hover { color:var(--blue2); }
   .qr-box { position:relative; margin-top:0; display:inline-flex; align-items:center; justify-content:center;
     background:linear-gradient(160deg,var(--panel1),var(--panel2)); border:1px solid var(--line);
     border-radius:16px; padding:10px; box-shadow:0 0 22px rgba(74,163,255,.18); width:fit-content; }
@@ -79,6 +88,7 @@
   }
   </style>
   <script src="assets/qrcode.min.js"></script>
+  <script src="assets/version.js"></script>
 </head>
 <body>
   <div class="lang-switch" id="langSwitch">🌐 EN</div>
@@ -119,8 +129,14 @@
     </script>
   </section>
   <footer id="siteFooter">Made by Eason Liang · 上海市 · 即将小学五年级</footer>
+  <div class="ver-line" id="siteVer"></div>
 
 <script>
+  // ===== 版本信息（来自 assets/version.js，由 tools/bump.js 维护） =====
+  const VER = window.GW_VERSION || { site:'1.0.0', updated:'', commit:'', games:{} };
+  const REPO_COMMIT_URL = 'https://github.com/realeasonliang/gameworld/commit/';
+  function gameVer(folder){ return (VER.games && VER.games[folder]) || '1.0.0'; }
+
   // ===== 站点文案（中/英） =====
   const I18N = {
     zh: {
@@ -212,6 +228,15 @@
     document.getElementById('tabHome').textContent = t.tabHome;
     document.getElementById('tabComments').textContent = t.tabComments;
 
+    // 页脚版本号：v1.0.0 · 2026-10-03 · 520fd91
+    const parts = ['GameWorld <b>v' + VER.site + '</b>'];
+    if (VER.updated) parts.push(VER.updated);
+    if (VER.commit) {
+      parts.push('<a class="ver-hash" href="' + REPO_COMMIT_URL + VER.commit +
+                 '" target="_blank" rel="noopener" title="查看这次更新改了什么">' + VER.commit + '</a>');
+    }
+    document.getElementById('siteVer').innerHTML = parts.join(' · ');
+
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     GAMES.forEach(g => {
@@ -219,6 +244,7 @@
       a.className = 'card';
       a.href = 'games/' + g.folder + '/' + g.file;
       a.innerHTML =
+        '<span class="ver">v' + gameVer(g.folder) + '</span>' +
         '<div class="ico">' + g.icon + '</div>' +
         '<h2>' + g.title[lang] + '</h2>' +
         '<p>' + g.desc[lang] + '</p>' +
